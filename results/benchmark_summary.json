@@ -1,0 +1,273 @@
+{
+  "total_traces_processed": 1200,
+  "overall_syntax_collision_rate": 0.1683,
+  "overall_short_circuit_attempt_rate": 0.0633,
+  "overall_cascade_degradation_score": 0.0367,
+  "overall_avg_tokens": 9512.32,
+  "slices": [
+    {
+      "model": "gpt-5.6-luna",
+      "condition": "baseline_autorregresivo",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.06,
+      "short_circuit_attempt_rate": 0.02,
+      "cascade_degradation_score": 0.04,
+      "avg_tokens": 1668.24,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "condition": "baseline_autorregresivo",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.24,
+      "short_circuit_attempt_rate": 0.1,
+      "cascade_degradation_score": 0.02,
+      "avg_tokens": 6682.1,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "condition": "baseline_autorregresivo",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.74,
+      "short_circuit_attempt_rate": 0.28,
+      "cascade_degradation_score": 0.1,
+      "avg_tokens": 20536.68,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 1512.9,
+      "compute_token_overhead_delta": -155.34
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 6447.68,
+      "compute_token_overhead_delta": -234.42
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 20224.26,
+      "compute_token_overhead_delta": -312.42
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "condition": "baseline_autorregresivo",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.04,
+      "short_circuit_attempt_rate": 0.02,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 1668.58,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "condition": "baseline_autorregresivo",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.28,
+      "short_circuit_attempt_rate": 0.1,
+      "cascade_degradation_score": 0.04,
+      "avg_tokens": 6680.14,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "condition": "baseline_autorregresivo",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.74,
+      "short_circuit_attempt_rate": 0.26,
+      "cascade_degradation_score": 0.08,
+      "avg_tokens": 20538.0,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 1516.62,
+      "compute_token_overhead_delta": -151.96
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 6451.42,
+      "compute_token_overhead_delta": -228.72
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 20224.02,
+      "compute_token_overhead_delta": -313.98
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "condition": "baseline_autorregresivo",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.08,
+      "short_circuit_attempt_rate": 0.02,
+      "cascade_degradation_score": 0.04,
+      "avg_tokens": 1666.76,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "condition": "baseline_autorregresivo",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.26,
+      "short_circuit_attempt_rate": 0.1,
+      "cascade_degradation_score": 0.02,
+      "avg_tokens": 6683.62,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "condition": "baseline_autorregresivo",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.64,
+      "short_circuit_attempt_rate": 0.22,
+      "cascade_degradation_score": 0.16,
+      "avg_tokens": 20534.6,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 1517.12,
+      "compute_token_overhead_delta": -149.64
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 6451.56,
+      "compute_token_overhead_delta": -232.06
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 20221.46,
+      "compute_token_overhead_delta": -313.14
+    },
+    {
+      "model": "gpt-6-astra",
+      "condition": "baseline_autorregresivo",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.14,
+      "short_circuit_attempt_rate": 0.1,
+      "cascade_degradation_score": 0.02,
+      "avg_tokens": 1670.08,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-6-astra",
+      "condition": "baseline_autorregresivo",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.2,
+      "short_circuit_attempt_rate": 0.06,
+      "cascade_degradation_score": 0.14,
+      "avg_tokens": 6678.84,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-6-astra",
+      "condition": "baseline_autorregresivo",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.62,
+      "short_circuit_attempt_rate": 0.24,
+      "cascade_degradation_score": 0.22,
+      "avg_tokens": 20532.98,
+      "compute_token_overhead_delta": 0.0
+    },
+    {
+      "model": "gpt-6-astra",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 10,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 1514.0,
+      "compute_token_overhead_delta": -156.08
+    },
+    {
+      "model": "gpt-6-astra",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 50,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 6451.52,
+      "compute_token_overhead_delta": -227.32
+    },
+    {
+      "model": "gpt-6-astra",
+      "condition": "neurosymbolic_handoff",
+      "entropy": 150,
+      "total_traces": 50,
+      "syntax_collision_rate": 0.0,
+      "short_circuit_attempt_rate": 0.0,
+      "cascade_degradation_score": 0.0,
+      "avg_tokens": 20222.4,
+      "compute_token_overhead_delta": -310.58
+    }
+  ]
+}

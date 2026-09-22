@@ -1,0 +1,59 @@
+experiment:
+  name: "fintech_mexico_neurosymbolic_benchmark"
+  version: "1.0.0"
+  description: "Stress-testing multi-agent financial workflows under lexical entropy (N=10, 50, 150) with OpenAI Batch API"
+  total_runs: 1200
+  budget_ceiling_usd: 300.00
+
+  models:
+    - gpt-5.6-luna
+    - gpt-5.6-terra
+    - gpt-5.6-sol
+    - gpt-6-astra
+
+  entropy_levels:
+    - 10
+    - 50
+    - 150
+
+  conditions:
+    - name: baseline_autorregresivo
+      description: "Direct tool-calling without prior symbolic gate verification"
+      gate_interception: false
+    - name: neurosymbolic_handoff
+      description: "Validation of Pydantic contracts and StateGuard DAG transitions"
+      gate_interception: true
+
+  case_distribution:
+    base_cases_per_condition: 100
+    categories:
+      happy_path:
+        percentage: 0.70
+        description: "Valid 18-digit CLABE (Modulo 10 verified) and valid RFC not in SAT blacklists"
+      clabe_arithmetic_failure:
+        percentage: 0.10
+        description: "Corrupt Modulo 10 control digit on otherwise valid CLABE length"
+      sat_regulatory_block:
+        percentage: 0.10
+        description: "RFC listed in Article 69-B definitive blacklist"
+      rfc_syntax_failure:
+        percentage: 0.10
+        description: "Invalid RFC length or malformed characters/date"
+
+  generation:
+    seed: 42
+    temperature: 0.0
+    tools_composition:
+      canonical_count: 5
+      n_10:
+        canonical: 5
+        decoys: 5
+        total: 10
+      n_50:
+        canonical: 5
+        decoys: 45
+        total: 50
+      n_150:
+        canonical: 5
+        decoys: 145
+        total: 150
