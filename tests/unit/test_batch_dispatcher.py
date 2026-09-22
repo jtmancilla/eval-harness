@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from src.eval.batch_dispatcher import OpenAIBatchDispatcher
+from src.eval.batch_dispatcher import OpenAIBatchDispatcher, download_batch_output
 
 
 def test_validate_budget_limit() -> None:
@@ -124,4 +125,44 @@ def test_cli_dry_run_invocation(capsys: pytest.CaptureFixture[str], tmp_path: Pa
     captured = capsys.readouterr()
     assert "OPENAI BATCH API — REPORTE DE INSPECCIÓN (--dry-run)" in captured.out
     assert "Solicitudes válidas:" in captured.out
+
+
+def test_download_batch_output_not_completed(capsys: pytest.CaptureFixture[str]) -> None:
+    """Verifies that download_batch_output prints a warning and returns None when not completed."""
+    mock_client = MagicMock()
+    mock_batch = MagicMock()
+    mock_batch.status = "in_progress"
+    mock_batch.request_counts = MagicMock(total=300, completed=150, failed=0)
+    mock_client.batches.retrieve.return_value = mock_batch
+
+    result = download_batch_output(mock_client, "batch_test_123")
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "[ADVERTENCIA]: El lote 'batch_test_123' no está en estado 'completed'." in captured.out
+    assert "in_progress" in captured.out
+
+
+def test_download_batch_output_completed_success(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Verifies that download_batch_output saves file and prints line count when completed."""
+    mock_client = MagicMock()
+    mock_batch = MagicMock()
+    mock_batch.status = "completed"
+    mock_batch.output_file_id = "file_out_123"
+    mock_client.batches.retrieve.return_value = mock_batch
+
+    mock_file_content = MagicMock()
+    mock_file_content.text = '{"line": 1}\n{"line": 2}\n\n{"line": 3}\n'
+    mock_client.files.content.return_value = mock_file_content
+
+    dest_file = tmp_path / "subfolder" / "batch_out.jsonl"
+    result = download_batch_output(mock_client, "batch_test_456", output_path=str(dest_file))
+
+    assert result == dest_file
+    assert dest_file.exists()
+    assert dest_file.read_text(encoding="utf-8") == mock_file_content.text
+
+    captured = capsys.readouterr()
+    assert "OPENAI BATCH API — DESCARGA EXITOSA" in captured.out
+    assert "3" in captured.out  # 3 non-empty lines
 

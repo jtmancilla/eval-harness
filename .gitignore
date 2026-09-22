@@ -49,3 +49,9 @@ ehthumbs.db
 *.jsonl
 simulated_batch_output.jsonl
 results/simulated_batch_output.jsonl
+
+# Datasets y resultados masivos
+data/batches/*.jsonl
+results/*.jsonl
+!results/.gitkeep
+!data/fixtures/

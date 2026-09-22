@@ -8,8 +8,18 @@ import sys
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+
+    def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:  # type: ignore[misc]
+        return False
+
 
 try:
     from openai import OpenAI
@@ -47,6 +57,7 @@ class OpenAIBatchDispatcher:
         dry_run: bool = False,
         client: Any | None = None,
     ) -> None:
+        load_dotenv()
         self.dry_run = dry_run
         self.api_key = api_key or os.getenv("OPENAI_API_KEY", "")
 
@@ -88,6 +99,7 @@ class OpenAIBatchDispatcher:
 
         seen_custom_ids: set[str] = set()
         models_found: set[str] = set()
+        urls_found: set[str] = set()
         total_requests = 0
         total_input_tokens = 0
         total_output_tokens = 0
@@ -109,8 +121,9 @@ class OpenAIBatchDispatcher:
                 url = record.get("url")
                 if method != "POST":
                     raise ValueError(f"Línea {line_idx}: método inválido '{method}', esperado 'POST'")
-                if url != "/v1/chat/completions":
-                    raise ValueError(f"Línea {line_idx}: url inválida '{url}', esperado '/v1/chat/completions'")
+                if url not in ("/v1/chat/completions", "/v1/responses"):
+                    raise ValueError(f"Línea {line_idx}: url inválida '{url}', esperado '/v1/chat/completions' o '/v1/responses'")
+                urls_found.add(url)
 
                 # 2. Validación de custom_id y unicidad
                 custom_id = record.get("custom_id")
@@ -127,12 +140,24 @@ class OpenAIBatchDispatcher:
 
                 model = body.get("model", "")
                 messages = body.get("messages")
+                instructions = body.get("instructions")
+                input_data = body.get("input")
                 tools = body.get("tools")
 
                 if not model:
                     raise ValueError(f"Línea {line_idx}: modelo no especificado en body")
-                if not isinstance(messages, list) or len(messages) == 0:
-                    raise ValueError(f"Línea {line_idx}: 'messages' debe ser una lista no vacía")
+
+                if url == "/v1/chat/completions":
+                    if not isinstance(messages, list) or len(messages) == 0:
+                        raise ValueError(f"Línea {line_idx}: 'messages' debe ser una lista no vacía para /v1/chat/completions")
+                    input_text = json.dumps(messages)
+                elif url == "/v1/responses":
+                    if not instructions and not input_data and not messages:
+                        raise ValueError(f"Línea {line_idx}: debe contener 'instructions' o 'input' para /v1/responses")
+                    input_text = json.dumps(instructions or "") + json.dumps(input_data or messages or "")
+                else:
+                    input_text = ""
+
                 if not isinstance(tools, list):
                     raise ValueError(f"Línea {line_idx}: 'tools' debe ser un array de herramientas")
 
@@ -140,7 +165,7 @@ class OpenAIBatchDispatcher:
                 rates = self.MODEL_RATES.get(model, self.DEFAULT_RATES)
 
                 # 4. Proyección de tokens y costos
-                req_in_tokens = (len(json.dumps(messages)) + len(json.dumps(tools))) // 4
+                req_in_tokens = (len(input_text) + len(json.dumps(tools))) // 4
                 req_out_tokens = 300
 
                 total_input_tokens += req_in_tokens
@@ -159,6 +184,7 @@ class OpenAIBatchDispatcher:
             "total_requests": total_requests,
             "unique_custom_ids": len(seen_custom_ids),
             "models": sorted(models_found),
+            "urls": sorted(urls_found),
             "estimated_input_tokens": total_input_tokens,
             "estimated_output_tokens": total_output_tokens,
             "estimated_total_tokens": total_input_tokens + total_output_tokens,
@@ -171,11 +197,26 @@ class OpenAIBatchDispatcher:
     def submit_batch(
         self,
         jsonl_path: Path,
-        completion_window: str = "24h",
+        completion_window: Literal["24h"] = "24h",
+        endpoint: str | None = None,
     ) -> BatchSubmissionResult:
-        """Uploads the dataset and initiates an OpenAI Batch job."""
+        """Uploads the dataset and initiates an OpenAI Batch job.
+
+        Infers the API endpoint dynamically from the first record of the JSONL if not provided.
+        """
         if not jsonl_path.exists():
             raise FileNotFoundError(f"Batch dataset not found: {jsonl_path}")
+
+        # Infiere dinámicamente el endpoint a partir de la url del primer registro
+        if endpoint is None:
+            endpoint = "/v1/chat/completions"
+            with open(jsonl_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        first_rec = json.loads(line)
+                        endpoint = first_rec.get("url", "/v1/chat/completions")
+                        break
 
         if self.dry_run:
             fake_batch_id = f"batch_dryrun_{uuid4().hex[:12]}"
@@ -194,7 +235,7 @@ class OpenAIBatchDispatcher:
 
         batch_job = self.client.batches.create(
             input_file_id=batch_file.id,
-            endpoint="/v1/chat/completions",
+            endpoint=endpoint,  # type: ignore[arg-type]
             completion_window=completion_window,
         )
 
@@ -267,8 +308,59 @@ class OpenAIBatchDispatcher:
         return output_path
 
 
+def download_batch_output(
+    client: OpenAI,
+    batch_id: str,
+    output_path: str | None = None,
+) -> Path | None:
+    """Retrieves and writes the output file of a completed OpenAI Batch job.
+
+    Args:
+        client: Authenticated OpenAI client instance.
+        batch_id: Identifier of the batch job to download.
+        output_path: Optional file path for the downloaded JSONL. Defaults to
+            'results/{batch_id}_output.jsonl'.
+
+    Returns:
+        The Path to the saved file if completed, or None if the batch is not completed.
+    """
+    batch = client.batches.retrieve(batch_id)
+
+    if batch.status != "completed":
+        progress = ""
+        if hasattr(batch, "request_counts") and batch.request_counts:
+            c = batch.request_counts
+            progress = f" (Completadas: {getattr(c, 'completed', 0)}/{getattr(c, 'total', 0)}, Fallidas: {getattr(c, 'failed', 0)})"
+        print(f"[ADVERTENCIA]: El lote '{batch_id}' no está en estado 'completed'. Estado actual: '{batch.status}'{progress}.")
+        return None
+
+    output_file_id = getattr(batch, "output_file_id", None)
+    if not output_file_id or not isinstance(output_file_id, str):
+        print(f"[ADVERTENCIA]: El lote '{batch_id}' está completado pero no tiene 'output_file_id' disponible.")
+        return None
+
+    target = Path(output_path) if output_path else Path(f"results/{batch_id}_output.jsonl")
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    content = client.files.content(output_file_id).text
+    with open(target, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    non_empty_lines = sum(1 for line in content.splitlines() if line.strip())
+    print("\n" + "=" * 64)
+    print(" OPENAI BATCH API — DESCARGA EXITOSA")
+    print("=" * 64)
+    print(f"• Batch ID:                {batch_id}")
+    print(f"• Archivo guardado:        {target.resolve()}")
+    print(f"• Líneas no vacías:        {non_empty_lines:,}")
+    print("=" * 64 + "\n")
+
+    return target
+
+
 def main(argv: list[str] | None = None) -> None:
-    """CLI interface for OpenAI Batch dispatcher, validation, and status tracking."""
+    """CLI Entrypoint for OpenAI Batch API operations."""
+    load_dotenv()
     parser = argparse.ArgumentParser(
         description="OpenAI Batch API Dispatcher & Budget Governance CLI (Regulated Fintech Mexico)"
     )
@@ -292,6 +384,20 @@ def main(argv: list[str] | None = None) -> None:
         type=str,
         help="Consulta el estatus actual de un lote en OpenAI Batch API",
     )
+    parser.add_argument(
+        "--download",
+        metavar="BATCH_ID",
+        type=str,
+        help="Descarga el archivo de resultados para un lote completado en OpenAI Batch API",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        metavar="RUTA_DESTINO",
+        type=str,
+        default=None,
+        help="Ruta destino opcional para el archivo descargado",
+    )
 
     args = parser.parse_args(argv)
 
@@ -309,7 +415,8 @@ def main(argv: list[str] | None = None) -> None:
         print(" OPENAI BATCH API — REPORTE DE INSPECCIÓN (--dry-run)")
         print("=" * 64)
         print(f"• Archivo verificado:      {summary['file_path']}")
-        print(f"• Solicitudes válidas:     {summary['total_requests']:,} (POST /v1/chat/completions)")
+        endpoints_label = ", ".join(f"POST {u}" for u in summary.get("urls", [])) or "POST"
+        print(f"• Solicitudes válidas:     {summary['total_requests']:,} ({endpoints_label})")
         print(f"• Unicidad de custom_id:   100% Únicos ({summary['unique_custom_ids']:,} identificadores)")
         print(f"• Modelos en lote:         {', '.join(summary['models'])}")
         print(f"• Tokens entrada est.:     {summary['estimated_input_tokens']:,}")
@@ -379,6 +486,17 @@ def main(argv: list[str] | None = None) -> None:
             print(f"• Completadas:             {counts.get('completed', 0):,}")
             print(f"• Fallidas:                {counts.get('failed', 0):,}")
         print("=" * 64 + "\n")
+        return
+
+    if args.download:
+        batch_id = args.download
+        api_key = os.getenv("OPENAI_API_KEY")
+
+        if not api_key:
+            sys.exit("\n[ERROR DE AUTENTICACIÓN]: La variable OPENAI_API_KEY no está configurada en el entorno.\n")
+
+        client = OpenAI(api_key=api_key)
+        download_batch_output(client, batch_id, output_path=args.output)
         return
 
     parser.print_help()

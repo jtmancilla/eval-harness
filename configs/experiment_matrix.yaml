@@ -1,7 +1,7 @@
 experiment:
   name: "fintech_mexico_neurosymbolic_benchmark"
   version: "1.0.0"
-  description: "Stress-testing multi-agent financial workflows under lexical entropy (N=10, 50, 150) with OpenAI Batch API"
+  description: "Stress-testing multi-agent financial workflows under lexical entropy (N=10, 50, 128) with OpenAI Batch API"
   total_runs: 1200
   budget_ceiling_usd: 300.00
 
@@ -14,7 +14,7 @@ experiment:
   entropy_levels:
     - 10
     - 50
-    - 150
+    - 128
 
   conditions:
     - name: baseline_autorregresivo
@@ -53,7 +53,7 @@ experiment:
         canonical: 5
         decoys: 45
         total: 50
-      n_150:
+      n_128:
         canonical: 5
-        decoys: 145
-        total: 150
+        decoys: 123
+        total: 128

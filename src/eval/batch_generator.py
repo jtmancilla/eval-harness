@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from src.tools.decoys import generate_decoy_catalog
 
@@ -145,16 +145,29 @@ CANONICAL_BENCHMARK_TOOLS: list[dict[str, Any]] = [
 def get_benchmark_tools(entropy_n: int) -> list[dict[str, Any]]:
     """Returns exactly N tools: 5 canonical + (N - 5) decoys.
 
-    Supports N=10 (5+5), N=50 (5+45), N=150 (5+145).
+    Supports N=10 (5+5), N=50 (5+45), N=128 (5+123).
     """
-    if entropy_n not in (10, 50, 150):
-        raise ValueError(f"Unsupported entropy level: {entropy_n}. Expected 10, 50, or 150.")
+    if entropy_n not in (10, 50, 128):
+        raise ValueError(f"Unsupported entropy level: {entropy_n}. Expected 10, 50, or 128.")
 
     decoy_count = entropy_n - len(CANONICAL_BENCHMARK_TOOLS)
     all_decoys = generate_decoy_catalog()
     selected_decoys = [d.to_openai_tool() for d in all_decoys[:decoy_count]]
 
     return list(CANONICAL_BENCHMARK_TOOLS) + selected_decoys
+
+
+def convert_tool_to_responses_spec(tool: dict[str, Any]) -> dict[str, Any]:
+    """Converts a standard chat completion tool object into /v1/responses tool format."""
+    if "function" in tool:
+        fn = tool["function"]
+        return {
+            "type": "function",
+            "name": fn["name"],
+            "description": fn.get("description", ""),
+            "parameters": fn.get("parameters", {}),
+        }
+    return tool
 
 
 class BatchDatasetCompiler:
@@ -166,7 +179,7 @@ class BatchDatasetCompiler:
         "gpt-5.6-sol",
         "gpt-6-astra",
     )
-    ENTROPY_LEVELS: tuple[int, ...] = (10, 50, 150)
+    ENTROPY_LEVELS: tuple[int, ...] = (10, 50, 128)
     CONDITIONS: tuple[BenchmarkCondition, ...] = (
         BenchmarkCondition.BASELINE_AUTORREGRESIVO,
         BenchmarkCondition.NEUROSYMBOLIC_HANDOFF,
@@ -181,9 +194,15 @@ class BatchDatasetCompiler:
         "gpt-6-astra": {"input": Decimal("5.00"), "output": Decimal("20.00")},
     }
 
-    def __init__(self, seed: int = 42, temperature: float = 0.0) -> None:
+    def __init__(
+        self,
+        seed: int = 42,
+        temperature: float = 0.0,
+        entropy_levels: tuple[int, ...] = (10, 50, 128),
+    ) -> None:
         self.seed = seed
         self.temperature = temperature
+        self.entropy_levels = entropy_levels
         self.rng = random.Random(seed)
         self.base_scenarios = self._generate_base_scenarios()
 
@@ -319,7 +338,7 @@ class BatchDatasetCompiler:
 
         for model in self.MODELS:
             for condition in self.CONDITIONS:
-                for entropy in self.ENTROPY_LEVELS:
+                for entropy in self.entropy_levels:
                     tools = get_benchmark_tools(entropy)
 
                     # Build 50 cases for this slice preserving distribution
@@ -354,20 +373,35 @@ class BatchDatasetCompiler:
                             f"Uso CFDI: {scenario.uso_cfdi}, CP: {scenario.codigo_postal}."
                         )
 
-                        req_item = {
-                            "custom_id": custom_id,
-                            "method": "POST",
-                            "url": "/v1/chat/completions",
-                            "body": {
-                                "model": model,
-                                "temperature": self.temperature,
-                                "messages": [
-                                    {"role": "system", "content": system_message},
-                                    {"role": "user", "content": user_message},
-                                ],
-                                "tools": tools,
-                            },
-                        }
+                        if model == "gpt-6-astra":
+                            req_item = {
+                                "custom_id": custom_id,
+                                "method": "POST",
+                                "url": "/v1/responses",
+                                "body": {
+                                    "model": model,
+                                    "instructions": system_message,
+                                    "input": user_message,
+                                    "tools": [convert_tool_to_responses_spec(t) for t in tools],
+                                    "reasoning": {"effort": "low"},
+                                },
+                            }
+                        else:
+                            req_item = {
+                                "custom_id": custom_id,
+                                "method": "POST",
+                                "url": "/v1/chat/completions",
+                                "body": {
+                                    "model": model,
+                                    "temperature": self.temperature,
+                                    "reasoning_effort": "none",
+                                    "messages": [
+                                        {"role": "system", "content": system_message},
+                                        {"role": "user", "content": user_message},
+                                    ],
+                                    "tools": tools,
+                                },
+                            }
                         requests.append(req_item)
 
                     slice_counter += 1
@@ -386,10 +420,14 @@ class BatchDatasetCompiler:
             model = body.get("model", "gpt-5.6-luna")
             rates = self.MODEL_RATES.get(model, self.MODEL_RATES["gpt-5.6-luna"])
 
-            # Input tokens: messages + tools serialized
-            messages_text = json.dumps(body.get("messages", []))
+            # Input tokens: messages or instructions+input + tools serialized
+            if "messages" in body:
+                input_text = json.dumps(body.get("messages", []))
+            else:
+                input_text = json.dumps(body.get("instructions", "")) + json.dumps(body.get("input", ""))
+
             tools_text = json.dumps(body.get("tools", []))
-            req_input_tokens = (len(messages_text) + len(tools_text)) // 4
+            req_input_tokens = (len(input_text) + len(tools_text)) // 4
             req_output_tokens = 300  # Projected average completion tokens
 
             total_input_tokens += req_input_tokens
@@ -411,8 +449,18 @@ class BatchDatasetCompiler:
             is_within_budget=is_within_budget,
         )
 
-    def generate_batch_jsonl(self, output_path: Path) -> Path:
-        """Generates the 1,200 requests, verifies budget, and writes the .jsonl file.
+    def generate_batch_jsonl(
+        self,
+        output_dir: Path = Path("data/batches"),
+    ) -> dict[str, Path]:
+        """Generates 1,200 requests partitioned by model into independent JSONL files in data/batches/.
+
+        Args:
+            output_dir: Target directory for the partitioned .jsonl files. If a file path
+                is passed, its parent directory is used.
+
+        Returns:
+            Dictionary mapping model name to the generated Path.
 
         Raises:
             BudgetExceededError: If projected cost exceeds $300 USD.
@@ -427,12 +475,30 @@ class BatchDatasetCompiler:
                 f"${self.BUDGET_CEILING_USD} USD"
             )
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            for item in requests:
-                f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        if output_dir.suffix == ".jsonl":
+            target_dir = output_dir.parent
+        else:
+            target_dir = output_dir
 
-        return output_path
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        requests_by_model: dict[str, list[dict[str, Any]]] = {model: [] for model in self.MODELS}
+        for item in requests:
+            model = item["body"]["model"]
+            if model in requests_by_model:
+                requests_by_model[model].append(item)
+            else:
+                requests_by_model.setdefault(model, []).append(item)
+
+        generated_files: dict[str, Path] = {}
+        for model, model_requests in requests_by_model.items():
+            model_file = target_dir / f"eval_batch_{model}.jsonl"
+            with open(model_file, "w", encoding="utf-8") as f:
+                for req in model_requests:
+                    f.write(json.dumps(req, ensure_ascii=False) + "\n")
+            generated_files[model] = model_file
+
+        return generated_files
 
     @classmethod
     def from_yaml(cls, yaml_path: Path) -> BatchDatasetCompiler:
@@ -447,14 +513,15 @@ class BatchDatasetCompiler:
         gen = exp.get("generation", {})
         seed = gen.get("seed", 42)
         temperature = gen.get("temperature", 0.0)
+        entropy_levels = tuple(exp.get("entropy_levels", [10, 50, 128]))
 
-        return cls(seed=seed, temperature=temperature)
+        return cls(seed=seed, temperature=temperature, entropy_levels=entropy_levels)
 
 
 if __name__ == "__main__":
     project_root = Path(__file__).resolve().parents[2]
     config_file = project_root / "configs" / "experiment_matrix.yaml"
-    output_batch_file = project_root / "eval_batch_1200.jsonl"
+    output_batches_dir = project_root / "data" / "batches"
 
     print(f"-> Leyendo matriz experimental: {config_file}")
     compiler = BatchDatasetCompiler.from_yaml(config_file)
@@ -462,14 +529,17 @@ if __name__ == "__main__":
     requests_batch = compiler.compile_requests()
     cost_projection = compiler.estimate_batch_cost(requests_batch)
 
-    # Generar el archivo .jsonl físico
-    saved_batch_path = compiler.generate_batch_jsonl(output_batch_file)
+    # Generar los archivos .jsonl particionados por modelo
+    saved_batch_files = compiler.generate_batch_jsonl(output_batches_dir)
 
     print("\n" + "=" * 60)
     print(" OPENAI BATCH DATASET COMPILER — REPORTE DE GENERACIÓN")
     print("=" * 60)
-    print(f"• Archivo generado:       {saved_batch_path.resolve()}")
-    print(f"• Solicitudes generadas:   {len(requests_batch):,} (Exactamente 1,200)")
+    print("• Archivos particionados generados en data/batches/:")
+    for model_name, path in saved_batch_files.items():
+        print(f"   - [{model_name}]: {path.resolve()} (300 solicitudes)")
+    print(f"• Total de archivos:       {len(saved_batch_files)}")
+    print(f"• Solicitudes generadas:   {len(requests_batch):,} (Exactamente 1,200 en total)")
     print(f"• Tokens de entrada est.:  {cost_projection.total_input_tokens:,}")
     print(f"• Tokens de salida est.:   {cost_projection.total_output_tokens:,}")
     print(f"• Tokens totales est.:     {(cost_projection.total_input_tokens + cost_projection.total_output_tokens):,}")

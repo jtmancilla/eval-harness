@@ -12,7 +12,7 @@ from src.eval.batch_generator import (
 )
 
 CUSTOM_ID_REGEX = re.compile(
-    r"^(gpt-[a-z0-9\.\-]+)_N(10|50|150)_(baseline_autorregresivo|neurosymbolic_handoff)_(scenario_\d{3})_([a-f0-9]+)$"
+    r"^(gpt-[a-z0-9\.\-]+)_N(10|50|128)_(baseline_autorregresivo|neurosymbolic_handoff)_(scenario_\d{3})_([a-f0-9]+)$"
 )
 
 
@@ -35,17 +35,17 @@ def test_base_scenarios_distribution() -> None:
 
 
 def test_get_benchmark_tools_composition() -> None:
-    """Verifies exact tool composition for N=10 (5+5), N=50 (5+45), N=150 (5+145)."""
+    """Verifies exact tool composition for N=10 (5+5), N=50 (5+45), N=128 (5+123)."""
     tools_10 = get_benchmark_tools(10)
     tools_50 = get_benchmark_tools(50)
-    tools_150 = get_benchmark_tools(150)
+    tools_128 = get_benchmark_tools(128)
 
     assert len(tools_10) == 10
     assert len(tools_50) == 50
-    assert len(tools_150) == 150
+    assert len(tools_128) == 128
 
     # Ensure all tool names within each set are unique
-    for tool_set in (tools_10, tools_50, tools_150):
+    for tool_set in (tools_10, tools_50, tools_128):
         names = [t["function"]["name"] for t in tool_set]
         assert len(names) == len(set(names))
 
@@ -72,7 +72,7 @@ def test_custom_ids_uniqueness_and_typed_structure() -> None:
 
 
 def test_tool_counts_match_entropy_level_in_each_request() -> None:
-    """Verifies that the number of tools in body.tools exactly matches N (10, 50, 150)."""
+    """Verifies that the number of tools in body.tools exactly matches N (10, 50, 128)."""
     compiler = BatchDatasetCompiler(seed=42)
     requests = compiler.compile_requests()
 
@@ -84,35 +84,71 @@ def test_tool_counts_match_entropy_level_in_each_request() -> None:
             assert len(tools) == 10
         elif "_N50_" in cid:
             assert len(tools) == 50
-        elif "_N150_" in cid:
-            assert len(tools) == 150
+        elif "_N128_" in cid:
+            assert len(tools) == 128
         else:
             raise ValueError(f"Unknown entropy level marker in {cid}")
 
 
 def test_batch_jsonl_generation_and_parseable_lines(tmp_path: Path) -> None:
-    """Verifies file generation of 1,200 JSON-parseable lines in OpenAI Batch API format."""
-    output_file = tmp_path / "test_batch_1200.jsonl"
+    """Verifies generation of partitioned JSONL files for each model under OpenAI Batch API format."""
     compiler = BatchDatasetCompiler(seed=42)
 
-    generated_path = compiler.generate_batch_jsonl(output_file)
-    assert generated_path.exists()
+    generated_files = compiler.generate_batch_jsonl(tmp_path)
+    assert len(generated_files) == 4
+    assert set(generated_files.keys()) == set(compiler.MODELS)
 
-    line_count = 0
-    with open(generated_path, encoding="utf-8") as f:
-        for line in f:
-            line_count += 1
-            record = json.loads(line)
-            assert record["method"] == "POST"
-            assert record["url"] == "/v1/chat/completions"
-            assert "custom_id" in record
-            body = record["body"]
-            assert body["model"] in compiler.MODELS
-            assert isinstance(body["messages"], list)
-            assert len(body["messages"]) >= 2
-            assert isinstance(body["tools"], list)
+    total_lines = 0
+    for model, path in generated_files.items():
+        assert path.exists()
+        assert path.name == f"eval_batch_{model}.jsonl"
 
-    assert line_count == 1200
+        expected_reasoning = "low" if model == "gpt-6-astra" else "none"
+        n10_count = 0
+        n50_count = 0
+        n128_count = 0
+        line_count = 0
+
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line_count += 1
+                record = json.loads(line)
+                assert record["method"] == "POST"
+                cid = record["custom_id"]
+                if "_N10_" in cid:
+                    n10_count += 1
+                elif "_N50_" in cid:
+                    n50_count += 1
+                elif "_N128_" in cid:
+                    n128_count += 1
+
+                body = record["body"]
+                assert body["model"] == model
+
+                if model == "gpt-6-astra":
+                    assert record["url"] == "/v1/responses"
+                    assert body["reasoning"] == {"effort": "low"}
+                    assert "instructions" in body
+                    assert "input" in body
+                    assert isinstance(body["tools"], list)
+                    assert "name" in body["tools"][0]
+                    assert "description" in body["tools"][0]
+                    assert "parameters" in body["tools"][0]
+                else:
+                    assert record["url"] == "/v1/chat/completions"
+                    assert body["reasoning_effort"] == expected_reasoning
+                    assert isinstance(body["messages"], list)
+                    assert len(body["messages"]) >= 2
+                    assert isinstance(body["tools"], list)
+                    assert "function" in body["tools"][0]
+
+        assert line_count == 300
+        assert n10_count == 100
+        assert n50_count == 100
+        assert n128_count == 100
+        total_lines += line_count
+
+    assert total_lines == 1200
 
 
 def test_cost_estimator_under_budget_ceiling() -> None:
