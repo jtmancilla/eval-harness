@@ -151,6 +151,9 @@ eval-harness/
 │   ├── batches/                 # JSONL de entrada particionados por modelo (Git-ignored)
 │   └── fixtures/                # Muestras mínimas para pruebas unitarias
 ├── results/                     # JSONL descargados y resúmenes JSON (Git-ignored)
+│   ├── figures/                 # Figuras analíticas de alta resolución (PNG)
+│   ├── benchmark_summary_1200.json # Resumen cuantitativo de 1,200 trazas reales
+│   └── benchmark_summary.json   # Resumen canónico de referencia
 ├── src/
 │   ├── contracts/               # Contratos Pydantic V2 inmutables (frozen=True)
 │   │   ├── clabe.py             # Tipos y validadores de cuenta CLABE
@@ -173,14 +176,19 @@ eval-harness/
 │   └── eval/                    # Harness de evaluación y benchmarking
 │       ├── batch_generator.py   # Compilación particionada (Chat y Responses API)
 │       ├── batch_dispatcher.py  # CLI: --submit, --status, --download, --dry-run
-│       └── trace_auditor.py     # Parser multimodelo, métricas PGDR y System Breach
+│       ├── trace_auditor.py     # Parser multimodelo, métricas PGDR y System Breach
+│       ├── cost_auditor.py      # Auditor de tokens y costos reales facturados
+│       └── generate_report.py   # Generador de gráficos analíticos (Matplotlib)
 ├── tests/
 │   ├── unit/                    # Pruebas unitarias de compuertas, contratos y eval
-│   └── smoke_astra_responses.py # Smoke test en vivo con gpt-6-astra y N=128
+│   ├── smoke_astra_responses.py # Smoke test en vivo con gpt-6-astra y N=128
+│   └── smoke_batch_payload.py   # Alias canónico de ejecución de smoke test
 ├── .env                         # Credenciales (OPENAI_API_KEY) — PROHIBIDO EN GIT
 ├── .env.example                 # Plantilla de variables de entorno requeridas
 ├── .gitignore                   # Blindaje estricto de secretos, caches y datasets
 ├── AGENTS.md                    # Manifiesto y marco de gobernanza
+├── WORKFLOW.md                  # Guía de operación estándar en 6 pasos
+├── README.md                    # Presentación del benchmark y comparativa de modelos
 └── pyproject.toml               # Configuración de dependencias, ruff y pytest
 ```
 
