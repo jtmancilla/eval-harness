@@ -54,46 +54,39 @@ class BenchmarkAuditSummary:
     slices: list[TraceSliceMetrics]
 
 
-def extract_tool_calls(response_body: dict[str, Any]) -> tuple[list[dict[str, str]], bool]:
+def extract_tool_calls(body: dict[str, Any]) -> list[dict[str, str]]:
     """Extracts tool calls from either /v1/chat/completions choices or /v1/responses output.
 
     Returns:
-        A tuple of (parsed_tool_calls, has_valid_container)
-        where each item in parsed_tool_calls has keys 'name' and 'arguments'.
+        A list of normalized tool calls, each containing 'name' and 'arguments'.
     """
-    # Protocol A: /v1/chat/completions (choices[0].message.tool_calls)
-    if "choices" in response_body:
-        choices = response_body.get("choices", [])
+    # 1. Flujo estándar /v1/chat/completions (Familia GPT-5.6)
+    if "choices" in body:
+        choices = body.get("choices", [])
         if not choices:
-            return [], False
-        message = choices[0].get("message", {})
-        raw_calls = message.get("tool_calls", [])
-        if not raw_calls:
-            return [], True
-        calls = []
-        for call in raw_calls:
-            func = call.get("function", {})
-            calls.append({
-                "name": func.get("name", ""),
-                "arguments": func.get("arguments", "{}"),
-            })
-        return calls, True
+            return []
+        msg = choices[0].get("message", {})
+        raw_calls = msg.get("tool_calls") or []
+        return [
+            {
+                "name": tc.get("function", {}).get("name", ""),
+                "arguments": tc.get("function", {}).get("arguments", "{}"),
+            }
+            for tc in raw_calls
+        ]
 
-    # Protocol B: /v1/responses (output list with type='function_call')
-    if "output" in response_body:
-        output_items = response_body.get("output", [])
-        if not output_items and response_body.get("error"):
-            return [], False
-        calls = []
-        for item in output_items:
-            if isinstance(item, dict) and item.get("type") == "function_call":
-                calls.append({
-                    "name": item.get("name", ""),
-                    "arguments": item.get("arguments", "{}"),
-                })
-        return calls, True
+    # 2. Flujo /v1/responses (GPT-6-Astra)
+    if "output" in body:
+        return [
+            {
+                "name": item.get("name") or item.get("function_name", ""),
+                "arguments": item.get("arguments", "{}"),
+            }
+            for item in body.get("output", [])
+            if isinstance(item, dict) and item.get("type") == "function_call"
+        ]
 
-    return [], False
+    return []
 
 
 class BatchTraceAuditor:
@@ -183,11 +176,11 @@ class BatchTraceAuditor:
                 slice_tokens += tokens
                 total_tokens_all += tokens
 
-                tool_calls, has_valid_container = extract_tool_calls(response)
+                tool_calls = extract_tool_calls(response)
                 trace_has_sc = False
                 trace_has_degradation = False
 
-                if not has_valid_container or not tool_calls:
+                if not tool_calls:
                     slice_intentions_total += 1
                     total_intentions_all += 1
                     slice_defective_intentions += 1
