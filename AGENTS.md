@@ -9,7 +9,7 @@
 
 `eval-harness` es un arnés de evaluación empírica de misión crítica diseñado para contrastar dos paradigmas de ejecución en flujos financieros regulados en México:
 1. **Baseline (Tool-Calling Autorregresivo Abierto):** Orquestación estándar de llamadas a herramientas donde el modelo LLM decide libremente la secuencia, precedencia y argumentos sin compuertas intermedias.
-2. **Neuro-Simbólico (Arquitectura con Compuertas Deterministas):** Supervisión estricta mediante contratos Pydantic V2 inmutables, compuertas simbólicas puras (`src/gates/`) y una máquina de estados finitos acíclica (`StateGuard` / `NopalDB`) que valida precondiciones antes de cualquier llamada a motor o dispersor.
+2. **Neuro-Simbólico (Arquitectura con Compuertas Deterministas):** Supervisión estricta mediante contratos Pydantic V2 inmutables, compuertas simbólicas puras (`src/gates/`) y una máquina de estados finitos acíclica (`StateGuard`) que valida precondiciones antes de cualquier llamada a motor o dispersor.
 
 ### 1.1. Hipótesis Central
 Bajo catálogos densos de herramientas ($N \in \{10, 50, 128\}$) saturados de colisión léxica y señuelos (*honeypots*), los modelos autorregresivos sufren sobreconfianza catastrófica (*Catastrophic Tool Over-reliance*), intentos de atajo (*short-circuiting*) y degradación de esquemas. La arquitectura neuro-simbólica garantiza una tasa de brecha de sistema (*System Breach Rate*) de **0.0%** sin importar la tasa intrínseca de defectos del modelo (*Pre-Gate Defect Rate*).
@@ -23,7 +23,7 @@ Bajo catálogos densos de herramientas ($N \in \{10, 50, 128\}$) saturados de co
 │ (Modelos LLM)    │                             │ (Gates / Python) │
 │ - Inferencia     │ <────────────────────────── │ - Determinismo   │
 │ - Parsing texto  │      Validación / Rechazo   │ - Pydantic V2    │
-│ - Intenciones    │                             │ - NopalDB Graph  │
+│ - Intenciones    │                             │ - StateGuard DAG │
 └──────────────────┘                             └──────────────────┘
                                                           │
                                                 [ Dispersión SPEI ]
@@ -39,7 +39,7 @@ Bajo catálogos densos de herramientas ($N \in \{10, 50, 128\}$) saturados de co
 
 ## 2. Invariantes del Dominio Financiero (México)
 
-Cualquier módulo que opere sobre `src/contracts/`, `src/gates/` o `src/agents/` debe preservar estrictamente estas especificaciones:
+Cualquier módulo que opere sobre `src/contracts/` o `src/gates/` debe preservar estrictamente estas especificaciones:
 
 ### 2.1. CLABE Interbancaria (18 dígitos)
 * **Estructura Oficial Banxico/ABM:** 3 dígitos de código de banco + 3 dígitos de plaza/sucursal + 11 dígitos de cuenta + 1 dígito de control.
@@ -55,31 +55,20 @@ Cualquier módulo que opere sobre `src/contracts/`, `src/gates/` o `src/agents/`
 * **Persona Moral:** 12 caracteres alfanuméricos (`3 letras + 6 dígitos AAMMDD + 3 homoclave`).
 * **Validación SAT:** Expresión regular canónica SAT y coherencia básica de calendario en `src/gates/rfc_validator.py`.
 
-### 2.3. Taxonomía y Topología de Agentes
-El flujo transaccional se distribuye secuencialmente entre tres agentes especializados y compuertas de inspección:
-
-```
-[Entrada] ──> [OnboardingAgent] ──> (StateGuard) ──> [ComplianceAgent] ──> (StateGuard) ──> [TreasuryAgent] ──> [SPEI Gate]
-```
-
-* **`OnboardingAgent`:** Extrae y normaliza metadatos de cuentas bancarias. Emite `OnboardingHandoffPayload`. Requiere validación algorítmica de CLABE.
-* **`ComplianceAgent`:** Ejecuta verificación fiscal RFC/CFDI y mitigación PLD/AML. Emite `ComplianceApprovalEnvelope` con dictamen binario (`APPROVED` o `REJECTED`).
-* **`TreasuryAgent`:** Construye la instrucción final SPEI con clave de rastreo bancaria y comisiones. Solo procesa envelopes formalmente aprobados por Compliance.
-
-### 2.4. Máquina de Estados Finitos (`StateGuard` / NopalDB)
+### 2.3. Máquina de Estados Finitos (`StateGuard`)
 El plano de control mantiene la traza en un DAG inmutable con transiciones formalmente autorizadas:
 
 | Estado Actual | Evento Disparador | Compuerta Simbólica | Estado Siguiente |
 | :--- | :--- | :--- | :--- |
 | `INITIALIZED` | Recepción de solicitud | Integridad estructural del mensaje | `ONBOARDING_PENDING` |
-| `ONBOARDING_PENDING` | Ejecución de Onboarding | `validate_clabe(clabe) == True` | `ONBOARDING_COMPLETED` |
+| `ONBOARDING_PENDING` | Validación de cuenta | `validate_clabe(clabe) == True` | `ONBOARDING_COMPLETED` |
 | `ONBOARDING_COMPLETED`| Despacho a Compliance | Verificación de firma y hash anterior | `COMPLIANCE_PENDING` |
-| `COMPLIANCE_PENDING` | Aprobación de matrices | `validate_rfc(rfc) == True` | `COMPLIANCE_APPROVED` |
+| `COMPLIANCE_PENDING` | Aprobación fiscal | `validate_rfc(rfc) == True` | `COMPLIANCE_APPROVED` |
 | `COMPLIANCE_PENDING` | Rechazo por riesgo | Registro de causal en auditoría | `COMPLIANCE_REJECTED` |
 | `COMPLIANCE_APPROVED` | Despacho a Tesorería | Verificación estricta de no-bypass | `TREASURY_PENDING` |
 | `TREASURY_PENDING` | Despacho de pago | Verificación de fondos y clave de rastreo | `DISPERSED` |
 
-Cualquier salto directo no registrado (e.g., llamar directamente a Tesorería desde Onboarding) levanta `ShortCircuitViolation` y aborta el proceso de inmediato.
+Cualquier salto directo no registrado (e.g., llamar directamente a Tesorería sin Compliance) levanta `ShortCircuitViolation` y aborta el proceso de inmediato.
 
 ---
 
@@ -158,22 +147,14 @@ eval-harness/
 │   ├── contracts/               # Contratos Pydantic V2 inmutables (frozen=True)
 │   │   ├── clabe.py             # Tipos y validadores de cuenta CLABE
 │   │   ├── fiscal.py            # Tipos y esquemas de RFC y CFDI
-│   │   ├── dispersion.py        # Modelos de instrucción SPEI y comisiones
 │   │   └── handoff.py           # Envelopes de handoff y estados del DAG
 │   ├── gates/                   # Compuertas puras y deterministas (sub-milisegundo)
 │   │   ├── modulo10.py          # Implementación pura de algoritmo Módulo 10
 │   │   ├── rfc_validator.py     # Validador de homoclave y regex SAT
 │   │   └── state_guard.py       # Máquina de estados SPEI e intercepción
-│   ├── graph/                   # Orquestación de grafos y auditoría
-│   │   ├── state_machine.py     # Transiciones y grafo de ejecución
-│   │   └── nopal_adapter.py     # Adaptador de persistencia inmutable NopalDB
-│   ├── agents/                  # Agentes especializados
-│   │   ├── onboarding.py        # Agente de extracción y normalización
-│   │   ├── compliance.py        # Agente de riesgo PLD y validación fiscal
-│   │   └── treasury.py          # Agente de armado de mensajes de dispersión
-│   ├── tools/                   # Catálogos de herramientas y señuelos
+│   ├── tools/
 │   │   └── decoys.py            # Generador de honeypots léxicos (N <= 128)
-│   └── eval/                    # Harness de evaluación y benchmarking
+│   └── eval/                    # Pipeline de evaluación y benchmarking
 │       ├── batch_generator.py   # Compilación particionada (Chat y Responses API)
 │       ├── batch_dispatcher.py  # CLI: --submit, --status, --download, --dry-run
 │       ├── trace_auditor.py     # Parser multimodelo, métricas PGDR y System Breach

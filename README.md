@@ -192,24 +192,16 @@ eval-harness/
 │   └── benchmark_summary.json      # Resumen canónico de referencia
 ├── src/
 │   ├── contracts/               # Contratos Pydantic V2 inmutables (frozen=True)
-│   │   ├── clabe.py             # Validadores de cuenta CLABE
-│   │   ├── fiscal.py            # Esquemas de RFC y CFDI
-│   │   ├── dispersion.py        # Modelos de instrucción SPEI
-│   │   └── handoff.py           # Envelopes de handoff inter-agente
+│   │   ├── clabe.py             # Validadores de cuenta CLABE (usa modulo10)
+│   │   ├── fiscal.py            # Esquemas de RFC y CFDI (usa rfc_validator)
+│   │   └── handoff.py           # Envelopes de handoff y estados del DAG
 │   ├── gates/                   # Compuertas matemáticas puras (sub-milisegundo)
 │   │   ├── modulo10.py          # Implementación pura de Módulo 10
 │   │   ├── rfc_validator.py     # Validador de homoclave y regex SAT
 │   │   └── state_guard.py       # Máquina de estados SPEI e intercepción
-│   ├── graph/                   # Orquestación de grafos y auditoría
-│   │   ├── state_machine.py     # Transiciones y grafo acíclico
-│   │   └── nopal_adapter.py     # Adaptador de persistencia NopalDB
-│   ├── agents/                  # Agentes especializados de la tríada
-│   │   ├── onboarding.py        # Extracción y normalización de cuentas
-│   │   ├── compliance.py        # Riesgo PLD y validación fiscal
-│   │   └── treasury.py          # Instrucciones SPEI y comisiones
-│   ├── tools/                   # Catálogos de herramientas y señuelos
+│   ├── tools/
 │   │   └── decoys.py            # Generador de honeypots léxicos (N <= 128)
-│   └── eval/                    # Arnés de evaluación y benchmarking
+│   └── eval/                    # Pipeline de evaluación y benchmarking
 │       ├── batch_generator.py   # Compilación particionada (Chat y Responses API)
 │       ├── batch_dispatcher.py  # CLI: --submit, --status, --download, --dry-run
 │       ├── trace_auditor.py     # Parser multimodelo y cálculo de PGDR / Breach
@@ -219,7 +211,7 @@ eval-harness/
 │   ├── unit/                    # Pruebas unitarias de compuertas, contratos y eval
 │   ├── smoke_astra_responses.py # Smoke test pre-vuelo en vivo con N=128
 │   └── smoke_batch_payload.py   # Alias de ejecución de smoke test
-├── AGENTS.md                    # Manifiesto y marco de gobernanza multi-agente
+├── AGENTS.md                    # Manifiesto y marco de gobernanza
 ├── WORKFLOW.md                  # Guía de operación estándar en 6 pasos
 ├── pyproject.toml               # Dependencias del proyecto
 └── README.md                    # Este documento
