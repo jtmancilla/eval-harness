@@ -49,9 +49,15 @@ ehthumbs.db
 *.jsonl
 simulated_batch_output.jsonl
 results/simulated_batch_output.jsonl
+results/real_batch_900.jsonl
 
 # Datasets y resultados masivos
 data/batches/*.jsonl
 results/*.jsonl
 !results/.gitkeep
 !data/fixtures/
+
+# Benchmark Canónico Oficial (1,200 trazas reproducibles)
+!data/batches/eval_batch_*.jsonl
+!results/output_*.jsonl
+!results/real_batch_1200.jsonl
