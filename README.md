@@ -181,15 +181,15 @@ eval-harness/
 ├── configs/
 │   └── experiment_matrix.yaml   # Matriz de entropía (10, 50, 128) y modelos
 ├── data/
-│   ├── batches/                 # Archivos JSONL particionados por modelo (Git-ignored)
-│   └── fixtures/                # Muestras mínimas para pruebas unitarias
+│   └── batches/                 # Archivos JSONL particionados por modelo (1,200 casos)
 ├── results/
 │   ├── figures/                 # Figuras analíticas de alta resolución (PNG)
 │   │   ├── entropy_degradation_series.png
 │   │   ├── containment_scatter.png
 │   │   └── behavioral_archetypes.png
 │   ├── benchmark_summary_1200.json # Resumen cuantitativo de 1,200 trazas reales
-│   └── benchmark_summary.json      # Resumen canónico de referencia
+│   ├── benchmark_summary.json      # Resumen canónico de referencia
+│   └── output_*.jsonl           # Trazas crudas resueltas por la API de OpenAI
 ├── src/
 │   ├── contracts/               # Contratos Pydantic V2 inmutables (frozen=True)
 │   │   ├── clabe.py             # Validadores de cuenta CLABE (usa modulo10)
@@ -207,81 +207,71 @@ eval-harness/
 │       ├── trace_auditor.py     # Parser multimodelo y cálculo de PGDR / Breach
 │       ├── cost_auditor.py      # Auditor de tokens y costos reales facturados
 │       └── generate_report.py   # Generador de gráficos analíticos (Matplotlib)
-├── tests/
-│   ├── unit/                    # Pruebas unitarias de compuertas, contratos y eval
-│   ├── smoke_astra_responses.py # Smoke test pre-vuelo en vivo con N=128
-│   └── smoke_batch_payload.py   # Alias de ejecución de smoke test
-├── AGENTS.md                    # Manifiesto y marco de gobernanza
-├── WORKFLOW.md                  # Guía de operación estándar en 6 pasos
-├── pyproject.toml               # Dependencias del proyecto
-└── README.md                    # Este documento
+├── WORKFLOW.md                  # Guía de operación estándar en 5 pasos
+├── pyproject.toml               # Dependencias del arnés de evaluación
+└── README.md                    # Reporte científico del benchmark
 ```
 
 ---
 
-## 8. Guía de Inicio Rápido
+## 8. Guía de Inicio Rápido y Reproducibilidad
 
 ### 8.1. Instalación
 ```bash
 git clone https://github.com/jtmancilla/eval-harness.git
 cd eval-harness
 
-# Crear entorno virtual e instalar dependencias
+# Crear entorno virtual e instalar dependencias del benchmark
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
 
 ### 8.2. Variables de Entorno
-Copia la plantilla y configura tu clave de API de OpenAI:
+Copia la plantilla y configura tu clave de API de OpenAI (requerido únicamente para despachar nuevos lotes):
 ```bash
 cp .env.example .env
 # Edita .env con tu OPENAI_API_KEY
 ```
 
-### 8.3. Verificación de Calidad y Pruebas Unitarias
-El arnés mantiene una disciplina estricta de tipado y pruebas:
+### 8.3. Reproducibilidad Científica Inmediata
+Cualquier investigador puede verificar y reproducir las métricas cuantitativas, costos facturados y figuras analíticas publicadas en este reporte directamente a partir de las trazas crudas:
+
 ```bash
-# 1. Ejecutar las 46 pruebas unitarias
-pytest tests/unit/ -v
+# 1. Auditar las 1,200 trazas reales del experimento y verificar métricas:
+python src/eval/trace_auditor.py results/real_batch_1200.jsonl --output results/benchmark_summary.json
 
-# 2. Análisis estático de tipos (mypy)
-mypy src/ tests/
+# 2. Auditar el consumo de tokens y costos facturados:
+python src/eval/cost_auditor.py
 
-# 3. Linter y formateo (ruff)
-ruff check .
+# 3. Regenerar las figuras analíticas de alta resolución en results/figures/:
+python src/eval/generate_report.py --input results/benchmark_summary.json --out-dir results/figures/
 ```
 
-### 8.4. Flujo de Trabajo en 6 Pasos (Batch API)
+### 8.4. Flujo de Evaluación de Nuevos Lotes (OpenAI Batch API)
+
+Para replicar o extender la evaluación ejecutando nuevos lotes contra la API de OpenAI:
 
 ```bash
 # Paso 1: Generar lotes particionados por modelo (1,200 solicitudes en data/batches/)
 python src/eval/batch_generator.py
 
-# Paso 2: Smoke test pre-vuelo obligatorio (valida HTTP 200 con N=128 herramientas)
-python tests/smoke_astra_responses.py
-
-# Paso 3: Despachar lotes a OpenAI Batch API (inspección previa o envío)
+# Paso 2: Validación pre-vuelo (--dry-run) para certificar sintaxis y presupuesto
 python src/eval/batch_dispatcher.py --dry-run data/batches/eval_batch_gpt-6-astra.jsonl
+
+# Paso 3: Despachar lotes a OpenAI Batch API
 python src/eval/batch_dispatcher.py --submit data/batches/eval_batch_gpt-6-astra.jsonl
 
-# Paso 4: Monitorear el progreso del lote
-python src/eval/batch_dispatcher.py --status batch_abc123xyz
+# Paso 4: Monitorear estatus y descargar trazas completadas
+python src/eval/batch_dispatcher.py --status <BATCH_ID>
+python src/eval/batch_dispatcher.py --download <BATCH_ID> --output results/output_astra.jsonl
 
-# Paso 5: Descargar trazas resueltas
-python src/eval/batch_dispatcher.py --download batch_abc123xyz --output results/output_astra.jsonl
-
-# Paso 6: Auditar métricas cuantitativas (PGDR, Breach Rate, SCR, SCAR, CDS)
+# Paso 5: Auditar métricas cuantitativas (PGDR, Breach Rate, SCR, SCAR, CDS) y graficar
 python src/eval/trace_auditor.py results/output_*.jsonl --output results/benchmark_summary.json
-
-# Auditoría de costos facturados (50% discount Batch API):
-python src/eval/cost_auditor.py
-
-# Generación de figuras visuales:
-python src/eval/generate_report.py --input results/benchmark_summary_1200.json --out-dir results/figures/
+python src/eval/generate_report.py --input results/benchmark_summary.json --out-dir results/figures/
 ```
 
-Para más detalles sobre la operación paso a paso, consulta [`WORKFLOW.md`](WORKFLOW.md).
+Para más detalles operativos sobre el despacho y descarga de lotes, consulta [`WORKFLOW.md`](WORKFLOW.md).
 
 ---
 

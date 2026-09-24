@@ -1,19 +1,17 @@
 # WORKFLOW.md — Guía de Operación del Arnés de Evaluación
 
-Procedimiento estándar de 6 pasos para compilar, validar, despachar, monitorear y auditar lotes en OpenAI Batch API.
+Procedimiento estándar de 5 pasos para compilar, validar con dry-run, despachar, monitorear y auditar lotes en OpenAI Batch API.
 
 ```
 [1. Generar Lotes] 
        ↓
-[2. Smoke Test (HTTP 200)] 
+[2. Validación Pre-vuelo (--dry-run)] 
        ↓
 [3. Despacho Batch API] 
        ↓
-[4. Monitoreo de Estatus] 
+[4. Monitoreo y Descarga] 
        ↓
-[5. Descarga Vía CLI] 
-       ↓
-[6. Auditoría Cuantitativa]
+[5. Auditoría y Visualizaciones]
 ```
 
 ---
@@ -31,22 +29,18 @@ python src/eval/batch_generator.py
 
 ---
 
-## Paso 2: Smoke Test Pre-vuelo (Obligatorio)
-Valida una solicitud real con $N=128$ herramientas contra la API en vivo para certificar respuesta HTTP 200 antes de incurrir en costos o bloqueos en la cola batch:
+## Paso 2: Validación Pre-vuelo (--dry-run)
+Valida la sintaxis de las solicitudes, el tope de herramientas ($N \le 128$) y la gobernanza presupuestal (< $300 USD) antes de incurrir en costos en la cola batch:
 ```bash
-python tests/smoke_astra_responses.py
-# O su alias canónico:
-python tests/smoke_batch_payload.py
+# Inspección previa y cálculo de presupuesto:
+python src/eval/batch_dispatcher.py --dry-run data/batches/eval_batch_gpt-6-astra.jsonl
 ```
 
 ---
 
 ## Paso 3: Despacho a OpenAI Batch API
-Inspecciona con `--dry-run` o envía cada archivo particionado de forma secuencial y registra los `Batch ID` emitidos:
+Envía cada archivo particionado de forma secuencial y registra los `Batch ID` emitidos:
 ```bash
-# Inspección previa (--dry-run):
-python src/eval/batch_dispatcher.py --dry-run data/batches/eval_batch_gpt-6-astra.jsonl
-
 # Envío formal a la cola Batch:
 for file in data/batches/eval_batch_*.jsonl; do
     echo "--- Despachando $file ---"
@@ -56,15 +50,12 @@ done
 
 ---
 
-## Paso 4: Monitoreo de Estatus
+## Paso 4: Monitoreo de Estatus y Descarga de Resultados
 Consulta el progreso de los lotes encolados hasta que alcancen el estado `completed`:
 ```bash
 python src/eval/batch_dispatcher.py --status <BATCH_ID>
 ```
 
----
-
-## Paso 5: Descarga Formal de Resultados vía CLI
 Descarga las respuestas directamente a `results/` utilizando los flags del despachador:
 ```bash
 # Ejemplo para la tríada gpt-5.6 / gpt-6-astra:
@@ -81,14 +72,17 @@ wc -l results/output_*.jsonl
 
 ---
 
-## Paso 6: Auditoría Cuantitativa y Extracción de Métricas
-Ejecuta el auditor sobre los archivos descargados para calcular **PGDR** (Pre-Gate Defect Rate), confirmar el **0.0%** de brechas en el sistema (**System Breach**) y evaluar **SCR**, **SCAR**, **CDS** y **CTO**:
+## Paso 5: Auditoría Cuantitativa y Generación de Gráficas
+Ejecuta el auditor sobre los archivos descargados para calcular **PGDR** (Pre-Gate Defect Rate), confirmar el **0.0%** de brechas en el sistema (**System Breach**) y generar las figuras analíticas:
 
 ```bash
-# Opción A: Paso directo de múltiples archivos o comodín glob
+# 1. Auditoría cuantitativa (genera el resumen canónico):
 python src/eval/trace_auditor.py results/output_*.jsonl --output results/benchmark_summary.json
 
-# Opción B: Concatenando en un archivo consolidado
-cat results/output_*.jsonl > results/consolidated_traces.jsonl
-python src/eval/trace_auditor.py results/consolidated_traces.jsonl --output results/benchmark_summary.json
+# 2. Auditoría de costos y tokens facturados:
+python src/eval/cost_auditor.py
+
+# 3. Generación de figuras analíticas de alta resolución:
+python src/eval/generate_report.py --input results/benchmark_summary.json --out-dir results/figures/
 ```
+

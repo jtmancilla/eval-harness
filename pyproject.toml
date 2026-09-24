@@ -18,8 +18,6 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
     "matplotlib>=3.8.0",
-    "pytest>=8.0.0",
-    "ruff>=0.4.0",
 ]
 
 [project.optional-dependencies]
@@ -34,25 +32,3 @@ dev = [
 where = ["."]
 include = ["src*"]
 
-[tool.ruff]
-target-version = "py311"
-line-length = 100
-
-[tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade
-]
-ignore = [
-    "E501",  # line length is handled by formatter / docstrings
-]
-
-[tool.pytest.ini_options]
-minversion = "8.0"
-testpaths = ["tests"]
-pythonpath = ["."]
-addopts = "-ra -q --strict-markers"
