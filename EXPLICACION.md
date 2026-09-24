@@ -10,10 +10,12 @@ En el sistema financiero mexicano, una dispersión vía SPEI es estrictamente ir
 3. **Cálculo de comisiones:** determinación de la comisión bancaria e IVA aplicable (16%).
 4. **Instrucción de liquidación:** generación de la orden SPEI con clave de rastreo para su envío al motor de pagos.
 
-En una arquitectura agéntica bien diseñada, esta operación se distribuye conceptualmente entre tres roles institucionales:
-* **Agente de onboarding:** adquisición, parsing y normalización de metadatos de la cuenta receptora.
-* **Agente de compliance:** verificación fiscal, validación sintáctica de RFC y cruce contra listas de sanción.
-* **Agente de tesorería:** ensamblado de la orden de dispersión y autorización final del pago.
+En una arquitectura agéntica orientada a instituciones financieras (MAO / Normative MAS), esta operación se distribuye entre tres agentes especializados:
+* **Agente de onboarding:** adquisición, normalización y validación algorítmica de la cuenta CLABE receptora (Módulo 10 de Banxico).
+* **Agente de compliance:** acreditación fiscal de RFC/CFDI ante el SAT y verificación en listas negras del artículo 69-B del CFF.
+* **Agente de tesorería:** ensamblado de la orden de dispersión irreversible vía SPEI y liquidación final.
+
+La gobernanza entre estos tres agentes se instrumenta mediante un grafo de estados acíclico en NopalDB, donde las transiciones están condicionadas a contratos tipados estrictos en Pydantic V2. Ningún agente puede delegar (*handoff*) o autorizar la siguiente fase sin la acreditación previa del estado en el grafo.
 
 Cuando este flujo se entrega a un modelo de lenguaje con acceso abierto a un catálogo de herramientas (*open tool-calling*), el plano de control colapsa por dos vectores:
 * **Evasión de secuencia normativa (*short-circuiting*):** el modelo detecta que la meta final es "dispersar el dinero" e invoca directamente la herramienta de tesorería, omitiendo onboarding y compliance.
@@ -72,7 +74,7 @@ Para emular la densidad de un entorno corporativo real, se construyeron señuelo
 ### 3.3. Niveles de escalamiento de entropía ($N$)
 * **$N=10$:** 5 herramientas canónicas + 5 señuelos (baja interferencia).
 * **$N=50$:** 5 herramientas canónicas + 45 señuelos (interferencia moderada).
-* **$N=128$:** 5 herramientas canónicas + 123 señuelos (límite técnico por petición en OpenAI).
+* **$N=128$:** 5 herramientas canónicas + 123 señuelos (límite técnico por petición en la API de OpenAI, seleccionados a partir de un catálogo extendido de 147 señuelos con colisión léxica implementados en `src/tools/decoys.py`).
 
 ---
 
@@ -165,8 +167,8 @@ La arquitectura neuro-simbólica no intenta "re-entrenar" al LLM ni confiar en q
 * Evalúa la expresión regular oficial del SAT para personas físicas y morales.
 * Contrasta el RFC contra listas negras (Art. 69-B del CFF) sin intervención del modelo.
 
-### 6.3. Plano de control acíclico (`StateGuard`)
-* Formaliza las transiciones permitidas mediante una máquina de estados determinista:
+### 6.3. Plano de control acíclico (`StateGuard` y persistencia en NopalDB)
+* Formaliza las transiciones institucionales permitidas mediante una máquina de estados acíclica con auditoría inmutable en NopalDB:
   $$\text{INITIALIZED} \rightarrow \text{ONBOARDING} \rightarrow \text{COMPLIANCE} \rightarrow \text{TREASURY} \rightarrow \text{DISPERSED}$$
 * Si el modelo intenta llamar a tesorería sin contar con la aprobación de compliance, `StateGuard` levanta una excepción `ShortCircuitViolation`, interrumpe la ejecución y evita la dispersión.
 

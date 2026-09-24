@@ -6,9 +6,9 @@
 [![System Breach Rate](https://img.shields.io/badge/System%20Breach%20(NeuroSymbolic)-0.0%25-brightgreen.svg)](#4-resultados-empíricos-consolidados-1200-trazas)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Estudio experimental sobre la resiliencia y el colapso del plano de control en arquitecturas agénticas bajo saturación de herramientas (*tool entropy*) y evasión de secuencias normativas (*short-circuiting*). El protocolo evalúa la delegación transaccional irreversible en flujos financieros regulados en México (validación algorítmica de CLABE Módulo 10 de Banxico, acreditación fiscal de RFC/CFDI ante el SAT y dispersión vía SPEI), distribuyendo la operación entre tres roles institucionales: onboarding, compliance y tesorería, gobernados por un grafo de estados inmutable.
+Estudio experimental sobre la resiliencia y el colapso del plano de control en arquitecturas agénticas orientadas a flujos financieros de alta regulación en México (validación algorítmica de CLABE Módulo 10 de Banxico, acreditación fiscal de RFC/CFDI ante el SAT y dispersión irreversible vía SPEI). La operación se distribuye entre tres agentes especializados (onboarding, compliance y tesorería) gobernados institucionalmente por un grafo de estados acíclico en NopalDB.
 
-El estudio somete a los modelos GPT-5.6 (Luna, Terra, Sol) y GPT-6 Astra a una batería de 1,200 ejecuciones a ciegas mediante la OpenAI Batch API bajo escalamiento progresivo de entropía en el catálogo ($N \in \{10, 50, 128\}$ herramientas), contrastando el tool-calling autorregresivo abierto frente a un protocolo de handoff tipado estricto con Pydantic V2 y compuertas deterministas.
+Sometiendo a los modelos GPT-5.6 (Luna, Terra, Sol) y GPT-6 Astra a una batería de 1,200 ejecuciones a ciegas mediante la OpenAI Batch API (bajo cota presupuestal de 300 USD) con escalamiento progresivo de entropía en el catálogo ($N = 10, 50, 128$ herramientas efectivas, integrando un catálogo extendido de 147 señuelos con colisión léxica), el estudio cuantifica la cascada de error composicional y la evasión de secuencias normativas (*short-circuiting*) al contrastar el tool-calling autorregresivo tradicional frente a un protocolo de delegación (*handoff*) tipado estricto con Pydantic V2. Los datos empíricos cuantifican la tasa de colisión sintáctica, la degradación de precisión inter-agente y el sobrecosto de cómputo en inferencia al usar razonamiento deliberativo frente a compuertas neuro-simbólicas deterministas.
 
 Para el marco metodológico detallado, análisis de colapso y taxonomía completa de defectos, consultar [`EXPLICACION.md`](EXPLICACION.md).
 
@@ -25,7 +25,7 @@ La orquestación de procesos transaccionales de misión crítica mediante llamad
 El benchmark contrasta dos paradigmas de control a lo largo de **1,200 trazas reales**:
 
 * **Baseline (tool-calling autorregresivo abierto):** el modelo decide libremente precedencia, selección y argumentos sin mediación determinista externa, conectando su salida directamente al ejecutor financiero.
-* **Neuro-simbólico (restricción normativa con compuertas deterministas):** el modelo propone intenciones de llamada, pero una capa de validación en Python valida tipos estrictos (Pydantic V2 con `extra='forbid'`, `frozen=True`), compuertas matemáticas puras en sub-milisegundo y una máquina de estados acíclica (`StateGuard`) que bloquea cualquier salto de fase no autorizado.
+* **Neuro-simbólico (restricción normativa con compuertas deterministas):** el modelo propone intenciones de llamada, pero una capa de validación en Python valida tipos estrictos (Pydantic V2 con `extra='forbid'`, `frozen=True`), compuertas matemáticas puras en sub-milisegundo y una máquina de estados acíclica (`StateGuard` con persistencia de grafo en NopalDB) que bloquea cualquier salto de fase no autorizado.
 
 ```
                       ┌────────────────────────────────────────┐
@@ -40,8 +40,8 @@ El benchmark contrasta dos paradigmas de control a lo largo de **1,200 trazas re
 └──────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
-│ FLUJO NEURO-SIMBÓLICO (Gobernanza con compuertas deterministas)                      │
-│  [ LLM ] ──> [ Onboarding ] ──> (StateGuard) ──> [ Compliance ] ──> (StateGuard) ──> SPEI
+│ FLUJO NEURO-SIMBÓLICO (Gobernanza con compuertas deterministas en NopalDB)           │
+│  [ LLM ] ──> [ Onboarding ] ──> (StateGuard/NopalDB) ──> [ Compliance ] ──> SPEI     │
 │                   │                   │                 │                 │          │
 │                   ▼                   ▼                 ▼                 ▼          │
 │              CLABE Mod-10        Precondición      RFC / SAT         Aprobación      │
