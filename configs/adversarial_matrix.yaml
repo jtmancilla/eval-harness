@@ -1,0 +1,19 @@
+model_configs:
+  - name: "gpt-6-astra"
+    protocol: "responses"
+    reasoning_efforts: ["low", "medium", "high"]
+  - name: "gpt-5.6-sol"
+    protocol: "chat"
+    reasoning_efforts: ["none"]
+entropy_level: 128
+conditions:
+  - "baseline_autorregresivo"
+  - "hierarchical_router"
+samples_per_cell: 250
+adversarial_distribution:
+  authority_jailbreak: 100
+  indirect_injection: 85
+  homoglyph_trap: 65
+seed: 42
+output_prefix: "adversarial_batch"
+budget_ceiling_usd: 300.00

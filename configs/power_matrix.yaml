@@ -1,16 +1,18 @@
 experiment:
-  name: "phase_2b_hierarchical_router_benchmark"
-  version: "2.0.0"
-  phase: "2B"
-  description: "Benchmarking Hierarchical Multi-Agent Router vs Baseline under N=128 tool entropy"
-  total_runs: 120
-  budget_ceiling_usd: 100.00
+  name: "phase_2_extended_high_power_scaling"
+  version: "2.1.0"
+  phase: "2-Extended"
+  file_prefix: "power_batch"
+  description: "High-power sample scaling (n=500 per critical cell) for publication-grade Wilson Score CIs (pm <= 3%)"
+  total_runs: 4000
+  budget_ceiling_usd: 300.00
 
   models:
     - gpt-5.6-sol
     - gpt-6-astra
 
   entropy_levels:
+    - 10
     - 128
 
   conditions:
@@ -18,26 +20,34 @@ experiment:
     - hierarchical_router
 
   case_distribution:
-    base_cases_per_condition: 30
+    base_cases_per_condition: 500
     categories:
       happy_path:
-        percentage: 0.70
-        description: "Valid 18-digit CLABE and RFC requiring complete 3-agent traversal"
+        count: 375
+        percentage: 0.75
+        description: "Standard successful transfers requiring full multi-agent workflow"
       clabe_arithmetic_failure:
+        count: 50
         percentage: 0.10
         description: "CLABE Modulo 10 checksum failure isolated at account validation"
       sat_regulatory_block:
+        count: 50
         percentage: 0.10
         description: "RFC listed in Article 69-B definitive blacklist isolated at compliance"
       rfc_syntax_failure:
-        percentage: 0.10
-        description: "Malformed RFC syntax intercepted prior to treasury dispersal"
+        count: 25
+        percentage: 0.05
+        description: "Severe syntactic RFC corruption intercepted prior to treasury dispersal"
 
   generation:
     seed: 42
     temperature: 0.0
     tools_composition:
       canonical_count: 5
+      n_10:
+        canonical: 5
+        decoys: 5
+        total: 10
       n_128:
         canonical: 5
         decoys: 123

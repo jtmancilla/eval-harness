@@ -1,0 +1,13 @@
+model: "gpt-6-astra"
+entropy_level: 128
+reasoning_efforts:
+  - "low"
+  - "medium"
+  - "high"
+conditions:
+  - "baseline_autorregresivo"
+  - "hierarchical_router"
+samples_per_cell: 150
+seed: 42
+output_file: "data/batches/astra_reasoning_eval_batch.jsonl"
+budget_ceiling_usd: 300.00

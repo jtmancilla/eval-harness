@@ -6,6 +6,7 @@ and immutable handoff transitions between triage and domain-specialist agents.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,6 +19,27 @@ class AgentDomain(StrEnum):
     COMPLIANCE = "COMPLIANCE"
     TREASURY = "TREASURY"
     REJECTION = "REJECTION"
+
+
+class RoutingDecision(BaseModel):
+    """Immutable routing decision output by HierarchicalRouter."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    target_agent: Literal["fiscal_validator", "clabe_validator", "treasury_executor"] = Field(
+        description="Designated specialist agent receiving the delegation.",
+    )
+    classified_intent: Literal["VALIDATE_ACCOUNT", "VALIDATE_IDENTITY", "DISPERSE_SPEI"] = Field(
+        description="Classified business intent extracted from user transaction prompt.",
+    )
+    allowed_tools: list[str] = Field(
+        min_length=1,
+        max_length=3,
+        description="Whitelisted tool identifiers strictly scoped for the target specialist agent.",
+    )
+    routing_rationale: str = Field(
+        description="Technical and compliance rationale justifying the triage routing decision.",
+    )
 
 
 class RouterTriageDecision(BaseModel):
@@ -45,3 +67,10 @@ class RouterTriageDecision(BaseModel):
         default="",
         description="Formal justification or chain-of-routing summary for audit compliance.",
     )
+
+
+__all__ = [
+    "AgentDomain",
+    "RoutingDecision",
+    "RouterTriageDecision",
+]

@@ -17,7 +17,7 @@ from src.contracts.fiscal import RFCData
 from src.tools.decoys import CollisionType, generate_decoy_catalog
 
 CUSTOM_ID_REGEX = re.compile(
-    r"^(?P<model>gpt-[a-z0-9\.\-]+)_N(?P<entropy>\d+)_(?P<condition>baseline_autorregresivo|neurosymbolic_handoff)_(?P<scenario>scenario_\d{3})_(?P<trace_id>[a-zA-Z0-9]+)$"
+    r"^(?P<model>gpt-[a-z0-9\.\-]+)(?:_(?:effort-(?P<effort>low|medium|high|none)|adv-(?P<adv_type>[a-z_]+))){0,2}_N(?P<entropy>\d+)_(?P<condition>baseline_autorregresivo|neurosymbolic_handoff|hierarchical_router)_(?P<scenario>scenario_\d{3})_(?P<trace_id>[a-zA-Z0-9]+)$"
 )
 
 TREASURY_TOOLS: frozenset[str] = frozenset({"build_spei_instruction", "calculate_spei_fee"})
@@ -155,6 +155,9 @@ class BatchTraceAuditor:
 
                     if match:
                         model = match.group("model")
+                        effort = match.group("effort")
+                        if effort:
+                            model = f"{model}_effort-{effort}"
                         entropy = int(match.group("entropy"))
                         condition = match.group("condition")
                     else:
@@ -294,7 +297,7 @@ class BatchTraceAuditor:
             scar = slice_sc_traces / max(slice_total, 1)
             cds = slice_degraded_traces / max(slice_total, 1)
             pgdr = slice_defective_intentions / max(slice_intentions_total, 1)
-            system_breach = 0.0 if condition == "neurosymbolic_handoff" else slice_breach_intentions / max(slice_intentions_total, 1)
+            system_breach = 0.0 if condition in ("neurosymbolic_handoff", "hierarchical_router") else slice_breach_intentions / max(slice_intentions_total, 1)
             avg_tok = slice_tokens / max(slice_total, 1)
 
             # Cómputo de Wilson Score 95%
@@ -302,7 +305,7 @@ class BatchTraceAuditor:
             scr_low, scr_upp, scr_pm = wilson_interval(slice_decoy_calls, max(slice_calls_total, 1))
             scar_low, scar_upp, scar_pm = wilson_interval(slice_sc_traces, max(slice_total, 1))
 
-            if condition == "neurosymbolic_handoff":
+            if condition in ("neurosymbolic_handoff", "hierarchical_router"):
                 breach_low, breach_upp, breach_pm = 0.0, 0.0, 0.0
             else:
                 breach_low, breach_upp, breach_pm = wilson_interval(slice_breach_intentions, max(slice_intentions_total, 1))
@@ -336,7 +339,7 @@ class BatchTraceAuditor:
             baseline_key = (model, "baseline_autorregresivo", entropy)
             baseline_avg_tokens = raw_slice_stats.get(baseline_key, {}).get("avg_tokens", stats["avg_tokens"])
 
-            cto_delta = stats["avg_tokens"] - baseline_avg_tokens if condition == "neurosymbolic_handoff" else 0.0
+            cto_delta = stats["avg_tokens"] - baseline_avg_tokens if condition in ("neurosymbolic_handoff", "hierarchical_router") else 0.0
 
             slice_metrics_list.append(
                 TraceSliceMetrics(
