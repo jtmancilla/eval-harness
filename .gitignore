@@ -52,6 +52,8 @@ results/simulated_batch_output.jsonl
 
 # Datasets y resultados masivos
 data/batches/*.jsonl
+data/batches/router_*.jsonl
 results/*.jsonl
+results/router_*.jsonl
 !results/.gitkeep
 !data/fixtures/

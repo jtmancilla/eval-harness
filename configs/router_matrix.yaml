@@ -1,0 +1,52 @@
+experiment:
+  name: "phase_2b_hierarchical_router_benchmark"
+  version: "2.0.0-beta"
+  phase: "2B"
+  description: "Benchmarking Hierarchical Multi-Agent Router under high lexical entropy (N=128) vs Flat Open Baseline"
+  total_runs: 400
+  budget_ceiling_usd: 150.00
+
+  models:
+    - gpt-5.6-luna
+    - gpt-5.6-terra
+    - gpt-5.6-sol
+    - gpt-6-astra
+
+  entropy_levels:
+    - 128
+
+  conditions:
+    - name: hierarchical_router_handoff
+      description: "Two-stage hierarchical routing with deterministic catalog pruning to N<=10 per agent"
+      gate_interception: true
+      catalog_pruning: true
+    - name: flat_open_baseline_128
+      description: "Direct tool-calling with flat unpruned N=128 catalog (control baseline)"
+      gate_interception: false
+      catalog_pruning: false
+
+  case_distribution:
+    base_cases_per_condition: 50
+    categories:
+      happy_path:
+        percentage: 0.70
+        description: "Valid 18-digit CLABE and RFC requiring complete 3-agent traversal"
+      clabe_arithmetic_failure:
+        percentage: 0.10
+        description: "Onboarding triage isolation with Modulo 10 corrupt control digit"
+      sat_regulatory_block:
+        percentage: 0.10
+        description: "Compliance triage isolation with Article 69-B blocked RFC"
+      rfc_syntax_failure:
+        percentage: 0.10
+        description: "Malformed RFC syntax intercepted prior to treasury delegation"
+
+  generation:
+    seed: 42
+    temperature: 0.0
+    tools_composition:
+      canonical_count: 5
+      n_128:
+        canonical: 5
+        decoys: 123
+        total: 128
