@@ -1,6 +1,7 @@
 """OpenAI Batch API dataset compiler and cost estimator under lexical entropy."""
 from __future__ import annotations
 
+import argparse
 import json
 import random
 from dataclasses import dataclass
@@ -145,10 +146,10 @@ CANONICAL_BENCHMARK_TOOLS: list[dict[str, Any]] = [
 def get_benchmark_tools(entropy_n: int) -> list[dict[str, Any]]:
     """Returns exactly N tools: 5 canonical + (N - 5) decoys.
 
-    Supports N=10 (5+5), N=50 (5+45), N=128 (5+123).
+    Supports any N between 5 and 128 tools (inclusive).
     """
-    if entropy_n not in (10, 50, 128):
-        raise ValueError(f"Unsupported entropy level: {entropy_n}. Expected 10, 50, or 128.")
+    if not (5 <= entropy_n <= 128):
+        raise ValueError(f"Unsupported entropy level: {entropy_n}. Expected between 5 and 128.")
 
     decoy_count = entropy_n - len(CANONICAL_BENCHMARK_TOOLS)
     all_decoys = generate_decoy_catalog()
@@ -171,15 +172,17 @@ def convert_tool_to_responses_spec(tool: dict[str, Any]) -> dict[str, Any]:
 
 
 class BatchDatasetCompiler:
-    """Compiles 1,200 batch requests for OpenAI Batch API under lexical entropy."""
+    """Compiles batch requests for OpenAI Batch API under lexical entropy."""
 
-    MODELS: tuple[str, ...] = (
+    DEFAULT_MODELS: tuple[str, ...] = (
         "gpt-5.6-luna",
         "gpt-5.6-terra",
         "gpt-5.6-sol",
         "gpt-6-astra",
     )
-    ENTROPY_LEVELS: tuple[int, ...] = (10, 50, 128)
+    MODELS: tuple[str, ...] = DEFAULT_MODELS
+    DEFAULT_ENTROPY_LEVELS: tuple[int, ...] = (10, 50, 128)
+    ENTROPY_LEVELS: tuple[int, ...] = DEFAULT_ENTROPY_LEVELS
     CONDITIONS: tuple[BenchmarkCondition, ...] = (
         BenchmarkCondition.BASELINE_AUTORREGRESIVO,
         BenchmarkCondition.NEUROSYMBOLIC_HANDOFF,
@@ -199,10 +202,23 @@ class BatchDatasetCompiler:
         seed: int = 42,
         temperature: float = 0.0,
         entropy_levels: tuple[int, ...] = (10, 50, 128),
+        models: tuple[str, ...] = (
+            "gpt-5.6-luna",
+            "gpt-5.6-terra",
+            "gpt-5.6-sol",
+            "gpt-6-astra",
+        ),
+        cases_per_condition: int | None = None,
+        budget_ceiling_usd: Decimal = Decimal("300.00"),
+        file_prefix: str = "eval_batch",
     ) -> None:
         self.seed = seed
         self.temperature = temperature
         self.entropy_levels = entropy_levels
+        self.models = models
+        self.cases_per_condition = cases_per_condition
+        self.budget_ceiling_usd = budget_ceiling_usd
+        self.file_prefix = file_prefix
         self.rng = random.Random(seed)
         self.base_scenarios = self._generate_base_scenarios()
 
@@ -322,13 +338,21 @@ class BatchDatasetCompiler:
         return scenarios
 
     def compile_requests(self) -> list[dict[str, Any]]:
-        """Compiles the full suite of exactly 1,200 batch request items."""
+        """Compiles the full suite of batch request items according to matrix configuration."""
         requests: list[dict[str, Any]] = []
 
-        # 4 models * 2 conditions * 3 entropy levels = 24 experimental slices
-        # 1,200 total runs / 24 slices = 50 runs per slice
-        # Subsets of base scenarios to maintain exact 70/10/10/10 in each 50-run slice:
-        # 35 happy path (70%), 5 clabe failure (10%), 5 sat block (10%), 5 rfc syntax (10%) = 50
+        if self.cases_per_condition is not None:
+            runs_per_slice = self.cases_per_condition
+        elif len(self.models) == 4 and self.entropy_levels == (10, 50, 128):
+            runs_per_slice = 50
+        else:
+            runs_per_slice = 10
+
+        happy_count = int(round(runs_per_slice * 0.70))
+        clabe_count = int(round(runs_per_slice * 0.10))
+        sat_count = int(round(runs_per_slice * 0.10))
+        rfc_count = runs_per_slice - happy_count - clabe_count - sat_count
+
         happy_cases = [s for s in self.base_scenarios if s.category == ScenarioCategory.HAPPY_PATH]
         clabe_cases = [s for s in self.base_scenarios if s.category == ScenarioCategory.CLABE_ARITHMETIC_FAILURE]
         sat_cases = [s for s in self.base_scenarios if s.category == ScenarioCategory.SAT_REGULATORY_BLOCK]
@@ -336,17 +360,16 @@ class BatchDatasetCompiler:
 
         slice_counter = 0
 
-        for model in self.MODELS:
+        for model in self.models:
             for condition in self.CONDITIONS:
                 for entropy in self.entropy_levels:
                     tools = get_benchmark_tools(entropy)
 
-                    # Build 50 cases for this slice preserving distribution
                     slice_offset = slice_counter * 5
-                    selected_happy = [happy_cases[(slice_offset + i) % len(happy_cases)] for i in range(35)]
-                    selected_clabe = [clabe_cases[(slice_offset + i) % len(clabe_cases)] for i in range(5)]
-                    selected_sat = [sat_cases[(slice_offset + i) % len(sat_cases)] for i in range(5)]
-                    selected_rfc = [rfc_cases[(slice_offset + i) % len(rfc_cases)] for i in range(5)]
+                    selected_happy = [happy_cases[(slice_offset + i) % len(happy_cases)] for i in range(happy_count)]
+                    selected_clabe = [clabe_cases[(slice_offset + i) % len(clabe_cases)] for i in range(clabe_count)]
+                    selected_sat = [sat_cases[(slice_offset + i) % len(sat_cases)] for i in range(sat_count)]
+                    selected_rfc = [rfc_cases[(slice_offset + i) % len(rfc_cases)] for i in range(rfc_count)]
 
                     slice_scenarios = selected_happy + selected_clabe + selected_sat + selected_rfc
 
@@ -409,7 +432,7 @@ class BatchDatasetCompiler:
         return requests
 
     def estimate_batch_cost(self, requests: list[dict[str, Any]]) -> CostEstimate:
-        """Estimates token usage and projected cost against the $300 USD ceiling."""
+        """Estimates token usage and projected cost against the budget ceiling."""
         total_input_tokens = 0
         total_output_tokens = 0
         estimated_cost = Decimal("0.00")
@@ -438,32 +461,34 @@ class BatchDatasetCompiler:
             cost_out = (Decimal(req_output_tokens) / Decimal("1000000")) * rates["output"]
             estimated_cost += cost_in + cost_out
 
-        is_within_budget = estimated_cost <= self.BUDGET_CEILING_USD
+        is_within_budget = estimated_cost <= self.budget_ceiling_usd
 
         return CostEstimate(
             total_requests=len(requests),
             total_input_tokens=total_input_tokens,
             total_output_tokens=total_output_tokens,
             estimated_cost_usd=estimated_cost.quantize(Decimal("0.01")),
-            budget_limit_usd=self.BUDGET_CEILING_USD,
+            budget_limit_usd=self.budget_ceiling_usd,
             is_within_budget=is_within_budget,
         )
 
     def generate_batch_jsonl(
         self,
         output_dir: Path = Path("data/batches"),
+        file_prefix: str | None = None,
     ) -> dict[str, Path]:
-        """Generates 1,200 requests partitioned by model into independent JSONL files in data/batches/.
+        """Generates partitioned batch requests by model into independent JSONL files in output_dir.
 
         Args:
             output_dir: Target directory for the partitioned .jsonl files. If a file path
                 is passed, its parent directory is used.
+            file_prefix: Optional prefix for generated files (defaults to self.file_prefix).
 
         Returns:
             Dictionary mapping model name to the generated Path.
 
         Raises:
-            BudgetExceededError: If projected cost exceeds $300 USD.
+            BudgetExceededError: If projected cost exceeds the budget ceiling.
         """
         requests = self.compile_requests()
 
@@ -472,7 +497,7 @@ class BatchDatasetCompiler:
         if not cost_estimate.is_within_budget:
             raise BudgetExceededError(
                 f"Projected cost ${cost_estimate.estimated_cost_usd} exceeds budget ceiling "
-                f"${self.BUDGET_CEILING_USD} USD"
+                f"${self.budget_ceiling_usd} USD"
             )
 
         if output_dir.suffix == ".jsonl":
@@ -482,7 +507,9 @@ class BatchDatasetCompiler:
 
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        requests_by_model: dict[str, list[dict[str, Any]]] = {model: [] for model in self.MODELS}
+        prefix = file_prefix or self.file_prefix
+
+        requests_by_model: dict[str, list[dict[str, Any]]] = {model: [] for model in self.models}
         for item in requests:
             model = item["body"]["model"]
             if model in requests_by_model:
@@ -492,7 +519,7 @@ class BatchDatasetCompiler:
 
         generated_files: dict[str, Path] = {}
         for model, model_requests in requests_by_model.items():
-            model_file = target_dir / f"eval_batch_{model}.jsonl"
+            model_file = target_dir / f"{prefix}_{model}.jsonl"
             with open(model_file, "w", encoding="utf-8") as f:
                 for req in model_requests:
                     f.write(json.dumps(req, ensure_ascii=False) + "\n")
@@ -502,7 +529,7 @@ class BatchDatasetCompiler:
 
     @classmethod
     def from_yaml(cls, yaml_path: Path) -> BatchDatasetCompiler:
-        """Instantiates a compiler configured from experiment_matrix.yaml."""
+        """Instantiates a compiler configured from an experiment matrix YAML file."""
         if not yaml_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {yaml_path}")
 
@@ -514,14 +541,76 @@ class BatchDatasetCompiler:
         seed = gen.get("seed", 42)
         temperature = gen.get("temperature", 0.0)
         entropy_levels = tuple(exp.get("entropy_levels", [10, 50, 128]))
+        models = tuple(exp.get("models", cls.DEFAULT_MODELS))
+        budget_ceiling = Decimal(str(exp.get("budget_ceiling_usd", "300.00")))
 
-        return cls(seed=seed, temperature=temperature, entropy_levels=entropy_levels)
+        file_prefix = exp.get("file_prefix")
+        if not file_prefix:
+            if "sweep" in yaml_path.name.lower() or "sweep" in exp.get("name", "").lower():
+                file_prefix = "sweep_batch"
+            else:
+                file_prefix = "eval_batch"
+
+        case_dist = exp.get("case_distribution", {})
+        base_cases = case_dist.get("base_cases_per_condition")
+        total_runs = exp.get("total_runs")
+        if base_cases is not None:
+            cases_per_condition = int(base_cases)
+        elif total_runs is not None:
+            num_slices = len(models) * len(cls.CONDITIONS) * len(entropy_levels)
+            cases_per_condition = total_runs // num_slices
+        else:
+            cases_per_condition = 50
+
+        return cls(
+            seed=seed,
+            temperature=temperature,
+            entropy_levels=entropy_levels,
+            models=models,
+            cases_per_condition=cases_per_condition,
+            budget_ceiling_usd=budget_ceiling,
+            file_prefix=file_prefix,
+        )
 
 
-if __name__ == "__main__":
-    project_root = Path(__file__).resolve().parents[2]
-    config_file = project_root / "configs" / "experiment_matrix.yaml"
-    output_batches_dir = project_root / "data" / "batches"
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses CLI arguments for the batch dataset compiler."""
+    parser = argparse.ArgumentParser(
+        description="Compile OpenAI Batch API JSONL datasets under lexical entropy."
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("configs/experiment_matrix.yaml"),
+        help="Path to YAML matrix configuration (default: configs/experiment_matrix.yaml)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("data/batches"),
+        help="Target directory for partitioned JSONL batch files (default: data/batches)",
+    )
+    parser.add_argument(
+        "--file-prefix",
+        type=str,
+        default=None,
+        help="Optional prefix override for generated files",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    """CLI entry point for batch dataset compilation."""
+    args = parse_args(argv)
+    config_file = args.config
+    if not config_file.is_absolute():
+        project_root = Path(__file__).resolve().parents[2]
+        if (project_root / config_file).exists():
+            config_file = project_root / config_file
+    output_dir = args.output_dir
+    if not output_dir.is_absolute():
+        project_root = Path(__file__).resolve().parents[2]
+        output_dir = project_root / output_dir
 
     print(f"-> Leyendo matriz experimental: {config_file}")
     compiler = BatchDatasetCompiler.from_yaml(config_file)
@@ -530,16 +619,21 @@ if __name__ == "__main__":
     cost_projection = compiler.estimate_batch_cost(requests_batch)
 
     # Generar los archivos .jsonl particionados por modelo
-    saved_batch_files = compiler.generate_batch_jsonl(output_batches_dir)
+    saved_batch_files = compiler.generate_batch_jsonl(
+        output_dir=output_dir,
+        file_prefix=args.file_prefix,
+    )
 
     print("\n" + "=" * 60)
     print(" OPENAI BATCH DATASET COMPILER — REPORTE DE GENERACIÓN")
     print("=" * 60)
-    print("• Archivos particionados generados en data/batches/:")
+    print(f"• Archivos particionados generados en {output_dir}:")
     for model_name, path in saved_batch_files.items():
-        print(f"   - [{model_name}]: {path.resolve()} (300 solicitudes)")
+        with open(path, encoding="utf-8") as f:
+            line_count = sum(1 for _ in f)
+        print(f"   - [{model_name}]: {path.resolve()} ({line_count:,} solicitudes)")
     print(f"• Total de archivos:       {len(saved_batch_files)}")
-    print(f"• Solicitudes generadas:   {len(requests_batch):,} (Exactamente 1,200 en total)")
+    print(f"• Solicitudes generadas:   {len(requests_batch):,}")
     print(f"• Tokens de entrada est.:  {cost_projection.total_input_tokens:,}")
     print(f"• Tokens de salida est.:   {cost_projection.total_output_tokens:,}")
     print(f"• Tokens totales est.:     {(cost_projection.total_input_tokens + cost_projection.total_output_tokens):,}")
@@ -547,4 +641,8 @@ if __name__ == "__main__":
     print(f"• Límite presupuestal:    ${cost_projection.budget_limit_usd} USD")
     print(f"• Dentro de presupuesto:   {'SÍ' if cost_projection.is_within_budget else 'NO'}")
     print("=" * 60 + "\n")
+
+
+if __name__ == "__main__":
+    main()
 

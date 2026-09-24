@@ -162,3 +162,46 @@ def test_cost_estimator_under_budget_ceiling() -> None:
     assert cost_estimate.total_output_tokens > 0
     assert cost_estimate.is_within_budget is True
     assert cost_estimate.estimated_cost_usd < cost_estimate.budget_limit_usd
+
+
+def test_get_benchmark_tools_fine_grained_entropy() -> None:
+    """Verifies fine-grained tool generation across sweep levels and boundary checks."""
+    import pytest
+
+    for n in (5, 15, 25, 35, 45, 55, 65, 75, 85, 95, 110, 128):
+        tools = get_benchmark_tools(n)
+        assert len(tools) == n
+        names = [t["function"]["name"] for t in tools]
+        assert len(names) == len(set(names))
+
+    with pytest.raises(ValueError):
+        get_benchmark_tools(4)
+
+    with pytest.raises(ValueError):
+        get_benchmark_tools(129)
+
+
+def test_compiler_sweep_matrix_compilation(tmp_path: Path) -> None:
+    """Verifies that loading configs/sweep_matrix.yaml generates exactly 480 requests across 2 models."""
+    config_path = Path(__file__).resolve().parents[2] / "configs" / "sweep_matrix.yaml"
+    assert config_path.exists(), f"Configuration file missing: {config_path}"
+
+    compiler = BatchDatasetCompiler.from_yaml(config_path)
+    assert compiler.models == ("gpt-5.6-sol", "gpt-6-astra")
+    assert len(compiler.entropy_levels) == 12
+    assert compiler.cases_per_condition == 10
+
+    requests = compiler.compile_requests()
+    assert len(requests) == 480
+
+    generated_files = compiler.generate_batch_jsonl(tmp_path)
+    assert len(generated_files) == 2
+    assert "gpt-5.6-sol" in generated_files
+    assert "gpt-6-astra" in generated_files
+
+    for model, path in generated_files.items():
+        assert path.name == f"sweep_batch_{model}.jsonl"
+        with open(path, encoding="utf-8") as f:
+            lines = [json.loads(line) for line in f]
+        assert len(lines) == 240
+

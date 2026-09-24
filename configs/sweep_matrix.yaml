@@ -1,0 +1,103 @@
+experiment:
+  name: "fintech_mexico_fine_grained_entropy_sweep"
+  version: "2.0.0"
+  description: "Fine-grained attention percolation sweep (N=[5..128]) contrasting gpt-5.6-sol vs gpt-6-astra"
+  total_runs: 480
+  budget_ceiling_usd: 300.00
+  file_prefix: "sweep_batch"
+
+  models:
+    - gpt-5.6-sol
+    - gpt-6-astra
+
+  entropy_levels:
+    - 5
+    - 15
+    - 25
+    - 35
+    - 45
+    - 55
+    - 65
+    - 75
+    - 85
+    - 95
+    - 110
+    - 128
+
+  conditions:
+    - name: baseline_autorregresivo
+      description: "Direct tool-calling without prior symbolic gate verification"
+      gate_interception: false
+    - name: neurosymbolic_handoff
+      description: "Validation of Pydantic contracts and StateGuard DAG transitions"
+      gate_interception: true
+
+  case_distribution:
+    base_cases_per_condition: 10
+    categories:
+      happy_path:
+        percentage: 0.70
+        description: "Valid 18-digit CLABE (Modulo 10 verified) and valid RFC not in SAT blacklists"
+      clabe_arithmetic_failure:
+        percentage: 0.10
+        description: "Corrupt Modulo 10 control digit on otherwise valid CLABE length"
+      sat_regulatory_block:
+        percentage: 0.10
+        description: "RFC listed in Article 69-B definitive blacklist"
+      rfc_syntax_failure:
+        percentage: 0.10
+        description: "Invalid RFC length or malformed characters/date"
+
+  generation:
+    seed: 42
+    temperature: 0.0
+    tools_composition:
+      canonical_count: 5
+      n_5:
+        canonical: 5
+        decoys: 0
+        total: 5
+      n_15:
+        canonical: 5
+        decoys: 10
+        total: 15
+      n_25:
+        canonical: 5
+        decoys: 20
+        total: 25
+      n_35:
+        canonical: 5
+        decoys: 30
+        total: 35
+      n_45:
+        canonical: 5
+        decoys: 40
+        total: 45
+      n_55:
+        canonical: 5
+        decoys: 50
+        total: 55
+      n_65:
+        canonical: 5
+        decoys: 60
+        total: 65
+      n_75:
+        canonical: 5
+        decoys: 70
+        total: 75
+      n_85:
+        canonical: 5
+        decoys: 80
+        total: 85
+      n_95:
+        canonical: 5
+        decoys: 90
+        total: 95
+      n_110:
+        canonical: 5
+        decoys: 105
+        total: 110
+      n_128:
+        canonical: 5
+        decoys: 123
+        total: 128

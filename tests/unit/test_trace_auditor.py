@@ -301,7 +301,7 @@ def test_markdown_report_generation(tmp_path: Path) -> None:
     md_report = auditor.generate_markdown_report(summary)
 
     assert "# Executive Benchmark Report" in md_report
-    assert "| Modelo | Condición | Entropía (N) | Trazas | SCR (%) | SCAR (%) | CDS (%) | PGDR (%) | System Breach (%) | Tokens Prom. | CTO Delta |" in md_report
+    assert "| Modelo | Condición | Entropía (N) | Trazas | SCR (%) ±95% CI | SCAR (%) ±95% CI | CDS (%) | PGDR (%) ±95% CI | System Breach (%) | Tokens Prom. | CTO Delta |" in md_report
     assert "gpt-5.6-luna" in md_report
     assert "20.00%" in md_report
     assert "Overall Pre-Gate Defect Rate (PGDR):" in md_report
