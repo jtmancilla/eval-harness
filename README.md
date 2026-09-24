@@ -1,4 +1,4 @@
-# Gobernanza y resiliencia del plano de control en sistemas multi-agente: benchmark experimental con restricciones neuro-simbólicas en finanzas reguladas
+# Gobernanza y resiliencia en modelos de lenguaje: un benchmark neuro-simbólico
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![Pydantic V2](https://img.shields.io/badge/contracts-Pydantic%20V2-e92063.svg)](https://docs.pydantic.dev/)
@@ -6,9 +6,9 @@
 [![System Breach Rate](https://img.shields.io/badge/System%20Breach%20(NeuroSymbolic)-0.0%25-brightgreen.svg)](#4-resultados-empíricos-consolidados-1200-trazas)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Estudio experimental sobre la resiliencia y el colapso del plano de control en arquitecturas agénticas orientadas a flujos financieros de alta regulación en México (validación algorítmica de CLABE Módulo 10 de Banxico, acreditación fiscal de RFC/CFDI ante el SAT y dispersión irreversible vía SPEI). La operación se distribuye entre tres agentes especializados (onboarding, compliance y tesorería) gobernados institucionalmente por un grafo de estados acíclico en NopalDB.
+Estudio experimental sobre la resiliencia y el control normativo en modelos de lenguaje ante flujos financieros regulados en México (validación de cuentas CLABE con Módulo 10 de Banxico, verificación fiscal de RFC ante el SAT y dispersión irreversible vía SPEI).
 
-Sometiendo a los modelos GPT-5.6 (Luna, Terra, Sol) y GPT-6 Astra a una batería de 1,200 ejecuciones a ciegas mediante la OpenAI Batch API (bajo cota presupuestal de 300 USD) con escalamiento progresivo de entropía en el catálogo ($N = 10, 50, 128$ herramientas efectivas, integrando un catálogo extendido de 147 señuelos con colisión léxica), el estudio cuantifica la cascada de error composicional y la evasión de secuencias normativas (*short-circuiting*) al contrastar el tool-calling autorregresivo tradicional frente a un protocolo de delegación (*handoff*) tipado estricto con Pydantic V2. Los datos empíricos cuantifican la tasa de colisión sintáctica, la degradación de precisión inter-agente y el sobrecosto de cómputo en inferencia al usar razonamiento deliberativo frente a compuertas neuro-simbólicas deterministas.
+A partir de 1,200 ejecuciones a ciegas mediante la OpenAI Batch API sobre cuatro modelos (GPT-5.6 Luna, Terra, Sol y GPT-6 Astra) bajo escalamiento de entropía en el catálogo ($N \in \{10, 50, 128\}$ funciones), el benchmark contrasta la ejecución autorregresiva abierta frente a un marco de restricción neuro-simbólica con compuertas deterministas. Los datos empíricos cuantifican la tasa de colisión sintáctica, la evasión de secuencias obligatorias (*short-circuiting*) y el comportamiento del plano de control.
 
 Para el marco metodológico detallado, análisis de colapso y taxonomía completa de defectos, consultar [`EXPLICACION.md`](EXPLICACION.md).
 
@@ -16,16 +16,16 @@ Para el marco metodológico detallado, análisis de colapso y taxonomía complet
 
 ## 1. Planteamiento del problema y marco de gobernanza
 
-La orquestación de procesos transaccionales de misión crítica mediante llamadas a herramientas abiertas (*open tool-calling*) presenta fallas estructurales cuando el catálogo operativo crece y existen dependencias de precedencia legal:
+La ejecución de procesos transaccionales mediante modelos de lenguaje presenta fallas estructurales cuando el catálogo operativo crece y existen dependencias de precedencia legal:
 
-1. **Colapso del plano de control por colisión léxica:** al saturar el contexto con herramientas sintácticamente similares (versiones deprecadas, interfaces sandbox o emuladores de prueba), la atención del modelo se dispersa y selecciona ejecutores espurios.
-2. **Evasión de secuencias normativas (*short-circuiting*):** el modelo prioriza completar la meta declarada y emite la orden de dispersión de fondos saltándose compuertas regulatorias previas (validación fiscal del SAT o revisión de listas negras del artículo 69-B del Código Fiscal de la Federación).
+1. **Colapso del plano de control por colisión léxica:** al saturar el contexto con funciones sintácticamente similares (versiones deprecadas, interfaces sandbox o emuladores de prueba), la atención del modelo se dispersa y selecciona ejecutores espurios.
+2. **Evasión de secuencias normativas (*short-circuiting*):** el modelo prioriza completar la meta declarada y emite la orden de dispersión saltándose compuertas regulatorias previas (validación fiscal del SAT o revisión de listas negras del artículo 69-B del Código Fiscal de la Federación).
 3. **Degradación composicional de esquemas:** alteración de identificadores bancarios (truncamiento de ceros iniciales en cuentas CLABE de 18 dígitos o malformación de homoclaves de RFC).
 
 El benchmark contrasta dos paradigmas de control a lo largo de **1,200 trazas reales**:
 
-* **Baseline (tool-calling autorregresivo abierto):** el modelo decide libremente precedencia, selección y argumentos sin mediación determinista externa, conectando su salida directamente al ejecutor financiero.
-* **Neuro-simbólico (restricción normativa con compuertas deterministas):** el modelo propone intenciones de llamada, pero una capa de validación en Python valida tipos estrictos (Pydantic V2 con `extra='forbid'`, `frozen=True`), compuertas matemáticas puras en sub-milisegundo y una máquina de estados acíclica (`StateGuard` con persistencia de grafo en NopalDB) que bloquea cualquier salto de fase no autorizado.
+* **Baseline (ejecución abierta):** el modelo decide libremente precedencia, selección de funciones y argumentos sin mediación determinista externa, conectando su salida directamente al motor financiero.
+* **Neuro-simbólico (restricción normativa):** el modelo propone las acciones, pero una capa determinista valida tipos estrictos, reglas matemáticas (Módulo 10) y una máquina de estados acíclica (`StateGuard`) que impide cualquier dispersión sin validación previa.
 
 ```
                       ┌────────────────────────────────────────┐
@@ -35,17 +35,17 @@ El benchmark contrasta dos paradigmas de control a lo largo de **1,200 trazas re
                                           ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
 │ FLUJO BASELINE (Plano de control autorregresivo abierto)                             │
-│  [ LLM ] ──────────── (Llamada libre a herramientas) ────────────> [ Motor de Pago ] │
-│  Brechas en el sistema: hasta 58.8% bajo saturación de herramientas                  │
+│  [ Modelo ] ───────────── (Llamada libre a funciones) ─────────────> [ Motor SPEI ]  │
+│  Brechas en el sistema: hasta 58.8% bajo saturación de catálogo                      │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
-│ FLUJO NEURO-SIMBÓLICO (Gobernanza con compuertas deterministas en NopalDB)           │
-│  [ LLM ] ──> [ Onboarding ] ──> (StateGuard/NopalDB) ──> [ Compliance ] ──> SPEI     │
-│                   │                   │                 │                 │          │
-│                   ▼                   ▼                 ▼                 ▼          │
-│              CLABE Mod-10        Precondición      RFC / SAT         Aprobación      │
-│              (Banxico ABM)      de secuencia      (Regex SAT)       de pago          │
+│ FLUJO NEURO-SIMBÓLICO (Compuertas deterministas y control de precedencia)            │
+│  [ Modelo ] ──> [ Validación CLABE ] ──> [ Verificación SAT ] ──> [ Dispersión SPEI ]│
+│                        │                         │                         │         │
+│                        ▼                         ▼                         ▼         │
+│                   Módulo 10                 Regex / Listas            StateGuard     │
+│                   (Banxico)                 (SAT 69-B)                (Precedencia)  │
 │                                                                                      │
 │  Brechas no interceptadas: 0.00% (invariante normativa garantizada)                  │
 └──────────────────────────────────────────────────────────────────────────────────────┘

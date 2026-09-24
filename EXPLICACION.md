@@ -1,8 +1,8 @@
-# Marco metodológico, arquitectura de control y análisis de colapso en sistemas agénticos
+# Marco metodológico, arquitectura de control y análisis de colapso en modelos de lenguaje
 
 ## 1. Delimitación del problema: colapso del plano de control y gobernanza normativa
 
-La automatización de transferencias interbancarias de fondos en México mediante modelos de lenguaje expone un problema fundamental de arquitectura: la ausencia de garantías de precedencia en el tool-calling autorregresivo abierto.
+La automatización de transferencias interbancarias mediante modelos de lenguaje expone un problema estructural: la ausencia de garantías de precedencia cuando el modelo opera sin compuertas deterministas.
 
 En el sistema financiero mexicano, una dispersión vía SPEI es estrictamente irreversible. Para mitigar riesgos de fraude, desvío de recursos y lavado de dinero, la regulación impone una secuencia obligatoria no negociable:
 1. **Identificación y validación de cuenta:** la cuenta CLABE receptora debe contener 18 dígitos y satisfacer el algoritmo ponderado Módulo 10 establecido por Banco de México y la Asociación de Bancos de México (ABM).
@@ -10,16 +10,9 @@ En el sistema financiero mexicano, una dispersión vía SPEI es estrictamente ir
 3. **Cálculo de comisiones:** determinación de la comisión bancaria e IVA aplicable (16%).
 4. **Instrucción de liquidación:** generación de la orden SPEI con clave de rastreo para su envío al motor de pagos.
 
-En una arquitectura agéntica orientada a instituciones financieras (MAO / Normative MAS), esta operación se distribuye entre tres agentes especializados:
-* **Agente de onboarding:** adquisición, normalización y validación algorítmica de la cuenta CLABE receptora (Módulo 10 de Banxico).
-* **Agente de compliance:** acreditación fiscal de RFC/CFDI ante el SAT y verificación en listas negras del artículo 69-B del CFF.
-* **Agente de tesorería:** ensamblado de la orden de dispersión irreversible vía SPEI y liquidación final.
-
-La gobernanza entre estos tres agentes se instrumenta mediante un grafo de estados acíclico en NopalDB, donde las transiciones están condicionadas a contratos tipados estrictos en Pydantic V2. Ningún agente puede delegar (*handoff*) o autorizar la siguiente fase sin la acreditación previa del estado en el grafo.
-
-Cuando este flujo se entrega a un modelo de lenguaje con acceso abierto a un catálogo de herramientas (*open tool-calling*), el plano de control colapsa por dos vectores:
-* **Evasión de secuencia normativa (*short-circuiting*):** el modelo detecta que la meta final es "dispersar el dinero" e invoca directamente la herramienta de tesorería, omitiendo onboarding y compliance.
-* **Captura por colisión léxica:** al crecer el catálogo de funciones, la similitud fonética o de prefijos desvía la llamada hacia herramientas espurias (entornos de prueba, emuladores o interfaces deprecadas).
+Cuando este flujo se entrega a un modelo de lenguaje en un entorno abierto, el plano de control colapsa por dos vectores:
+* **Evasión de secuencia normativa (*short-circuiting*):** el modelo detecta que la meta final es dispersar el monto e invoca directamente la herramienta de liquidación, omitiendo las fases regulatorias previas.
+* **Captura por colisión léxica:** al crecer el catálogo de funciones, la similitud fonética o de prefijos desvía la llamada hacia herramientas señuelo (entornos de prueba, emuladores o interfaces deprecadas).
 
 ---
 
@@ -167,10 +160,10 @@ La arquitectura neuro-simbólica no intenta "re-entrenar" al LLM ni confiar en q
 * Evalúa la expresión regular oficial del SAT para personas físicas y morales.
 * Contrasta el RFC contra listas negras (Art. 69-B del CFF) sin intervención del modelo.
 
-### 6.3. Plano de control acíclico (`StateGuard` y persistencia en NopalDB)
-* Formaliza las transiciones institucionales permitidas mediante una máquina de estados acíclica con auditoría inmutable en NopalDB:
+### 6.3. Plano de control acíclico (`StateGuard`)
+* Formaliza las transiciones obligatorias mediante una máquina de estados acíclica:
   $$\text{INITIALIZED} \rightarrow \text{ONBOARDING} \rightarrow \text{COMPLIANCE} \rightarrow \text{TREASURY} \rightarrow \text{DISPERSED}$$
-* Si el modelo intenta llamar a tesorería sin contar con la aprobación de compliance, `StateGuard` levanta una excepción `ShortCircuitViolation`, interrumpe la ejecución y evita la dispersión.
+* Si el modelo intenta invocar la dispersión sin contar con la aprobación previa de compliance, `StateGuard` levanta una excepción `ShortCircuitViolation`, interrumpe la ejecución y evita la transacción.
 
 ---
 
@@ -180,11 +173,11 @@ Los hallazgos de este estudio abren dos vertientes teóricas y experimentales:
 
 ### 7.1. Tool Routing via Structured LSH with Type-Unification Guarantees
 * **Problema identificado:** inyectar catálogos densos ($N \ge 128$) en el contexto de inferencia degrada el plano atencional del modelo y dispara el costo de tokens (de 1,000 a 9,500 tokens por petición).
-* **Solución propuesta:** reemplazar el catálogo plano por un enrutador basado en *Locality-Sensitive Hashing* (LSH) estructurado sobre representaciones de firma de funciones, con un paso posterior de unificación de tipos estática que garantice que solo se expongan al modelo herramientas compatibles con el estado actual del DAG.
+* **Solución propuesta:** reemplazar el catálogo plano por un enrutador basado en *Locality-Sensitive Hashing* (LSH) estructurado sobre representaciones de firma de funciones, con un paso posterior de unificación de tipos estática que garantice que solo se expongan al modelo herramientas compatibles con el estado actual del grafo.
 
 ### 7.2. Gobernanza y resiliencia en organizaciones multi-agente (MAO / Normative MAS)
-* **Problema identificado:** cuando múltiples agentes especializados (onboarding, compliance, tesorería) colaboran en un entorno no acotado, los contratos basados en lenguaje natural degeneran en fallas de coordinación.
-* **Solución propuesta:** formalizar las interacciones mediante sistemas multi-agente normativos (Normative MAS), donde la mediación inter-agente se ejecute sobre contratos Pydantic V2 inmutables con semántica de handoff tipado y persistencia en grafos de estado.
+* **Problema identificado:** cuando la operación financiera se extienda hacia múltiples agentes autónomos especializados (onboarding, compliance, tesorería), los contratos basados en lenguaje natural degeneran en fallas de coordinación.
+* **Solución propuesta:** formalizar las interacciones mediante sistemas multi-agente normativos (Normative MAS), donde la mediación inter-agente se ejecute sobre contratos Pydantic V2 inmutables con semántica de handoff tipado y persistencia de estados institucionales en grafos (e.g. NopalDB).
 
 ---
 
