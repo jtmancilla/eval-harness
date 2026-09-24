@@ -1,95 +1,99 @@
-# eval-harness — Neuro-Symbolic Multi-Agent Financial Benchmarking Harness
+# eval-harness — Benchmark de Tool-Calling y Validación Neuro-Simbólica en Finanzas (SPEI)
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![Pydantic V2](https://img.shields.io/badge/contracts-Pydantic%20V2-e92063.svg)](https://docs.pydantic.dev/)
 [![OpenAI Batch API](https://img.shields.io/badge/OpenAI-Batch%20API-412991.svg)](https://platform.openai.com/docs/guides/batch)
-[![System Breach Rate](https://img.shields.io/badge/System%20Breach%20(NeuroSymbolic)-0.0%25-brightgreen.svg)](#resultados-empíricos-consolidados-1200-trazas)
+[![System Breach Rate](https://img.shields.io/badge/System%20Breach%20(NeuroSymbolic)-0.0%25-brightgreen.svg)](#4-resultados-empíricos-consolidados-1200-trazas)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Arnés de evaluación empírica de misión crítica diseñado para contrastar la confiabilidad, seguridad transaccional y resistencia a la saturación de herramientas (*lexical entropy*) de cuatro modelos de **OpenAI** (`gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra` y `gpt-6-astra`) en flujos financieros regulados en México (**SPEI**, **CLABE Módulo 10**, **RFC/SAT**).
+Evaluación empírica de confiabilidad en llamadas a herramientas (*tool-calling*) para cuatro modelos de **OpenAI** (`gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra` y `gpt-6-astra`) en un flujo de dispersión de pagos interbancarios en México (SPEI, CLABE con Módulo 10 y RFC ante el SAT).
+
+> 📖 **Guía Completa del Benchmark:** Para una explicación detallada de todo el ciclo (concepción, diseño de tools, qué hace cada modelo con ejemplos reales y cómo se audita cada llamada), consulta **[`EXPLICACION.md`](EXPLICACION.md)**.
 
 ---
 
-## 1. Misión e Hipótesis Central
+## 1. Problema e Hipótesis
 
-En sistemas financieros de alta transaccionalidad, confiar la orquestación exclusivamente a llamadas a herramientas autorregresivas abiertas (*open tool-calling*) resulta inviable. Cuando los catálogos de herramientas se saturan con señuelos (*honeypots*) y colisiones léxicas ($N \in \{10, 50, 128\}$), los LLMs experimentan sobreconfianza catastrófica (*Catastrophic Tool Over-reliance*), intentos de atajo (*short-circuiting*) y degradación sintáctica de esquemas.
+Al conectar modelos de lenguaje a sistemas financieros mediante llamadas a herramientas (*function calling*), surgen riesgos operativos concretos:
+1. **Llamadas a herramientas incorrectas (señuelos):** Cuando el catálogo de herramientas crece, los modelos confunden funciones reales con versiones deprecadas, emuladores o interfaces de prueba con nombres parecidos.
+2. **Intentos de atajo:** El modelo intenta emitir la orden de pago directamente, saltándose pasos regulatorios obligatorios como la validación del RFC o la revisión de listas negras.
+3. **Parámetros mal formados:** El modelo envía argumentos que no cumplen con los estándares bancarios (por ejemplo, CLABEs con longitud incorrecta o RFCs con estructura inválida).
 
-Este proyecto evalúa dos paradigmas de orquestación a lo largo de **1,200 trazas reales**:
+Este benchmark evalúa el comportamiento de los modelos bajo tres tamaños de catálogo de herramientas ($N \in \{10, 50, 128\}$) y compara dos formas de operar a lo largo de **1,200 trazas reales**:
 
-1. **Baseline (Tool-Calling Autorregresivo Abierto):** Orquestación estándar donde el modelo LLM decide libremente la secuencia, precedencia y argumentos sin compuertas deterministas intermedias.
-2. **Neuro-Simbólico (Arquitectura con Compuertas Deterministas):** Supervisión estricta mediante contratos **Pydantic V2** inmutables (`extra='forbid'`, `frozen=True`), compuertas matemáticas puras sub-milisegundo (`src/gates/`) y una máquina de estados finitos acíclica (`StateGuard` / `NopalDB`) que valida precondiciones antes de cualquier dispersión SPEI.
+* **Baseline (Solo LLM):** El modelo decide libremente qué herramientas llamar y con qué parámetros, conectándose directamente al motor de pagos sin filtros intermedios.
+* **Neuro-Simbólico (LLM + Validación en Código):** El modelo propone las llamadas, pero una capa de validación en Python valida las precondiciones de negocio (dígito verificador de CLABE, formato de RFC y orden de pasos mediante una máquina de estados) antes de autorizar cualquier dispersión.
 
 ```
-                  ┌─────────────────────────────────────────────────────────┐
-                  │                 SOLICITUD FINANCIERA                    │
-                  └────────────────────────────┬────────────────────────────┘
-                                               │
-                                               ▼
-┌───────────────────────────────────────────────────────────────────────────────────────────┐
-│ FLUJO BASELINE (Abierto)                                                                  │
-│  [ LLM ] ──────────── (Llamada libre a herramientas) ────────────> [ Motor de Dispersión ] │
-│  ⚠️ Brechas de Sistema: hasta 58.8% bajo saturación de herramientas                       │
-└───────────────────────────────────────────────────────────────────────────────────────────┘
+                      ┌────────────────────────────────────────┐
+                      │          SOLICITUD FINANCIERA          │
+                      └───────────────────┬────────────────────┘
+                                          │
+                                          ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ FLUJO BASELINE (El LLM opera libremente)                                            │
+│  [ LLM ] ──────────── (Llamada libre a herramientas) ────────────> [ Motor de Pago ] │
+│  ⚠️ Brechas en el sistema: hasta 58.8% al saturar el catálogo de herramientas         │
+└──────────────────────────────────────────────────────────────────────────────────────┘
 
-┌───────────────────────────────────────────────────────────────────────────────────────────┐
-│ FLUJO NEURO-SIMBÓLICO (Compuertas Deterministas)                                          │
-│  [ LLM ] ──> [ Onboarding ] ──> (StateGuard) ──> [ Compliance ] ──> (StateGuard) ──> SPEI  │
-│                   │                   │                 │                 │               │
-│                   ▼                   ▼                 ▼                 ▼               │
-│             CLABE Mod-10         Firma / DAG       RFC / CFDI        Aprobación           │
-│             (sub-ms Gate)        Precondición     (Regex SAT)       No-Bypass             │
-│                                                                                           │
-│  🛡️ Post-Gate System Breach Rate: 0.00% (Invariante Arquitectural Garantizada)            │
-└───────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ FLUJO NEURO-SIMBÓLICO (El LLM propone, Python valida antes de pagar)                 │
+│  [ LLM ] ──> [ Onboarding ] ──> (StateGuard) ──> [ Compliance ] ──> (StateGuard) ──> SPEI
+│                   │                   │                 │                 │          │
+│                   ▼                   ▼                 ▼                 ▼          │
+│              CLABE Mod-10        Precondición      RFC / SAT         Aprobación      │
+│              (Banxico ABM)      de secuencia      (Regex SAT)       de pago          │
+│                                                                                      │
+│  🛡️ Brechas no interceptadas: 0.00% (el código frena cualquier llamada indebida)     │
+└──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Invariante Central:** Independientemente de la tasa intrínseca de defectos del modelo (*Pre-Gate Defect Rate*, que llega hasta **98.6%** en condiciones extremas), la arquitectura Neuro-Simbólica garantiza una tasa de brechas en el sistema (**Post-Gate System Breach Rate**) de **estrictamente 0.00%**.
+> **Resultado Principal:** Aunque la tasa de llamadas defectuosas emitidas por los modelos llega hasta un **98.6%** en catálogos saturados ($N=128$), la capa de validación determinista en Python intercepta todos los intentos indebidos, logrando un **0.00% de brechas no controladas**.
 
 ---
 
-## 2. Comparativa Empírica de los 4 Modelos de OpenAI
+## 2. Comparativa de los 4 Modelos de OpenAI
 
-La evaluación contrasta cuatro modelos representativos de OpenAI bajo condiciones idénticas de entropía ($N=10, 50, 128$ herramientas) y protocolos de invocación:
+Probamos cuatro modelos bajo condiciones idénticas de evaluación ($N=10, 50, 128$ herramientas por solicitud):
 
-| Modelo | Protocolo / Endpoint | Reasoning / Parámetros | Perfil Conductual Empírico |
+| Modelo | Protocolo / Endpoint | Parámetros | Comportamiento Observado |
 | :--- | :--- | :--- | :--- |
-| **`gpt-6-astra`** | `/v1/responses` | `reasoning: {"effort": "low"}`, flat tools | **Razonador Estructurado:** Cero atajos prematuros ($0.0\%$ SCAR), excelente a $N=10$ y $N=50$, pero vulnerable a colisión léxica con señuelos en catálogos densos ($54.4\%$ SCR @ $N=128$). |
-| **`gpt-5.6-terra`** | `/v1/chat/completions` | `reasoning_effort: "none"`, nested tools | **Shortcutter Agresivo:** Propensión masiva a saltarse pasos regulatorios en contextos reducidos ($94.0\%$ SCAR @ $N=10$). En catálogos densos alcanza un $58.8\%$ de brechas en baseline. |
-| **`gpt-5.6-luna`** | `/v1/chat/completions` | `reasoning_effort: "none"`, nested tools | **Híbrido Inestable:** Combina alta propensión al atajo ($58.0\%$ @ $N=10$, $46.0\%$ @ $N=128$) con alta colisión de señuelos ($43.0\%$ @ $N=128$). |
-| **`gpt-5.6-sol`** | `/v1/chat/completions` | `reasoning_effort: "none"`, nested tools | **Ejecutor Disciplinado:** Cumple estrictamente la precedencia de pasos ($0.0\%$ SCAR en todos los niveles), pero sufre confusión léxica al saturar el contexto ($33.9\%$ SCR @ $N=128$). |
+| **`gpt-6-astra`** | `/v1/responses` | `reasoning: {"effort": "low"}`, flat tools | **Disciplinado en secuencia, vulnerable a señuelos:** Cero intentos de atajo ($0.0\%$ SCAR en todos los niveles). Sin embargo, a $N=128$ herramientas, el $54.4\%$ de sus llamadas cayó en herramientas señuelo por similitud de nombres. |
+| **`gpt-5.6-terra`** | `/v1/chat/completions` | `reasoning_effort: "none"`, nested tools | **Propenso a atajos:** En catálogos pequeños ($N=10$), en el $94.0\%$ de los casos intentó llamar directamente a dispersar sin validar el RFC ni listas negras. En $N=128$, generó un $58.8\%$ de brechas en baseline. |
+| **`gpt-5.6-luna`** | `/v1/chat/completions` | `reasoning_effort: "none"`, nested tools | **Comportamiento mixto:** Presenta tanto intentos de atajo ($58.0\%$ a $N=10$) como confusión ante señuelos en catálogos grandes ($43.0\%$ a $N=128$). |
+| **`gpt-5.6-sol`** | `/v1/chat/completions` | `reasoning_effort: "none"`, nested tools | **Secuencia ordenada:** Respeta el orden de validación sin atajos ($0.0\%$ SCAR en todos los niveles). A $N=128$, un $33.9\%$ de sus llamadas fue a herramientas señuelo (el más bajo del grupo a ese nivel). |
 
 ---
 
-## 3. Evidencia Visual y Analítica
+## 3. Gráficas y Análisis Visual
 
-### 3.1. Contención Determinista: Defectos Intrínsecos vs. Brechas de Sistema
-La siguiente figura compara la tasa de defectos previos a la compuerta (*Pre-Gate Defect Rate*, eje $X$) contra la tasa de brechas que lograron penetrar al motor transaccional (*Post-Gate System Breach Rate*, eje $Y$):
+### 3.1. Contención de Errores: Defectos del Modelo vs. Brechas en el Sistema
+Compara el porcentaje de llamadas con error emitidas por el modelo (eje X) frente a los errores que lograron llegar al motor de pagos (eje Y):
 
-![Contención Determinista](results/figures/containment_scatter.png)
+![Contención de Errores](results/figures/containment_scatter.png)
 
-* **Baseline (Puntos Rojos):** Los defectos del LLM se propagan directamente como brechas en el sistema siguiendo la línea de falla crítica $Breach = Defect$.
-* **Neuro-Simbólico (Cuadros Verdes):** Todos los defectos, independientemente de su magnitud (incluso al 98.6%), quedan colapsados en la línea invariante horizontal de **$Breach = 0.0\%$**.
-
----
-
-### 3.2. Curva de Degradación Atencional por Densidad de Herramientas ($N$)
-Comportamiento de la tasa de defectos (*PGDR*) a medida que el catálogo de herramientas escala de $N=10 \rightarrow 50 \rightarrow 128$:
-
-![Curva de Degradación Atencional](results/figures/entropy_degradation_series.png)
-
-* A $N=10$ y $N=50$, los modelos mantienen un PGDR moderado o bajo (destacando `gpt-5.6-sol` y `gpt-6-astra` con $<7\%$).
-* Al alcanzar el límite de la API ($N=128$), se observa un quiebre exponencial de saturación atencional (*Catastrophic Tool Over-reliance*), donde los señuelos léxicos degradan el rendimiento de todos los modelos (alcanzando entre $38\%$ y $98\%$).
+* **Baseline (Puntos Rojos):** Los errores del LLM se convierten directamente en fallas del sistema (siguen la diagonal de falla $Breach = Defect$).
+* **Neuro-Simbólico (Cuadros Verdes):** Sin importar cuántos errores cometa el modelo (incluso al 98.6%), todos quedan contenidos en la línea de **$0.0\%$ brechas**.
 
 ---
 
-### 3.3. Arquetipos Conductuales por Modelo
-Comparativa entre los dos modos de falla primarios: **Propensión al Atajo Transaccional** (SCAR en baja entropía $N=10$) frente a **Vulnerabilidad a Señuelos Léxicos** (SCR en alta entropía $N=128$):
+### 3.2. Degradación del Rendimiento según el Número de Herramientas ($N$)
+Muestra cómo aumenta la tasa de llamadas defectuosas a medida que el catálogo crece de $N=10 \rightarrow 50 \rightarrow 128$:
 
-![Arquetipos Conductuales](results/figures/behavioral_archetypes.png)
+![Curva de Degradación](results/figures/entropy_degradation_series.png)
 
-* **`gpt-5.6-terra`** destaca por su hiper-propensión al atajo ($94.0\%$), intentando emitir pagos SPEI sin validaciones previas de Compliance.
-* **`gpt-5.6-luna`** muestra una vulnerabilidad balanceada en ambos vectores.
-* **`gpt-5.6-sol`** y **`gpt-6-astra`** muestran disciplina procedural perfecta ($0.0\%$ atajos), pero sufren una tasa de colisión léxica relevante ante 123 señuelos compitiendo en el catálogo.
+* Con $N=10$ y $N=50$, `gpt-5.6-sol` y `gpt-6-astra` mantienen tasas de error bajas ($<7\%$).
+* Al llegar a $N=128$ (el límite de la API de OpenAI), la presencia de 123 herramientas señuelo hace que el error de todos los modelos se dispare (entre $38\%$ y $98\%$).
+
+---
+
+### 3.3. Modos de Falla por Modelo: Atajos vs. Señuelos
+Compara los dos tipos de error principales: **intentar saltarse pasos** (en baja complejidad, $N=10$) frente a **confundirse con herramientas señuelo** (en alta complejidad, $N=128$):
+
+![Modos de Falla](results/figures/behavioral_archetypes.png)
+
+* `gpt-5.6-terra` falla principalmente por intentar brincarse pasos regulatorios ($94.0\%$ atajos a $N=10$).
+* `gpt-6-astra` y `gpt-5.6-sol` nunca se saltan pasos, pero son sensibles a confundirse con nombres de herramientas similares en catálogos grandes.
 
 ---
 
@@ -124,12 +128,12 @@ Resumen cuantitativo de los 24 cortes experimentales auditados directamente desd
 | `gpt-6-astra` | `neurosymbolic` | 50 | 50 | 0.0% | 0.0% | 10.0% | 6.67% | **0.00%** | 3,769.4 |
 | `gpt-6-astra` | `neurosymbolic` | 128 | 50 | 48.5% | 0.0% | 10.0% | 52.34% | **0.00%** | 9,445.1 |
 
-### Definición Formal de Métricas
-* **SCR (Syntax Collision Rate):** Porcentaje de tool-calls dirigidas a herramientas señuelo (*honeypots* léxicos o de prefijo).
-* **SCAR (Short-Circuit Attempt Rate):** Porcentaje de trazas que intentan transferir fondos o saltar a Tesorería sin autorización previa de Compliance.
-* **CDS (Cascade Degradation Score):** Porcentaje de fallos por corrupción de contratos Pydantic V2 (CLABE con dígito alterado, truncamiento de ceros, RFC malformado).
-* **PGDR (Pre-Gate Defect Rate):** Tasa intrínseca de intenciones defectuosas emitidas por el modelo: $\text{PGDR} = (\text{SCR} + \text{SCAR} + \text{CDS}) / \text{Llamadas Totales}$.
-* **System Breach Rate:** Transacciones indebidas no interceptadas que alcanzan el motor transaccional. En Neuro-Simbólico es **0.00%**.
+### Definición de Métricas
+* **SCR (Syntax Collision Rate):** Porcentaje de llamadas dirigidas a herramientas señuelo (funciones simuladas, deprecadas o de prueba).
+* **SCAR (Short-Circuit Attempt Rate):** Porcentaje de llamadas que intentaron emitir pagos saltándose pasos obligatorios de validación.
+* **CDS (Cascade Degradation Score):** Porcentaje de llamadas con datos mal formados (CLABE que no tiene 18 dígitos, RFC con formato inválido o parámetros incompletos).
+* **PGDR (Pre-Gate Defect Rate):** Porcentaje total de llamadas emitidas por el modelo que tuvieron algún defecto (señuelo, atajo o formato inválido).
+* **System Breach Rate:** Porcentaje de llamadas defectuosas que lograron pasar al motor de pagos sin ser detectadas. En la condición neuro-simbólica es **0.00%**.
 
 ---
 
@@ -155,22 +159,22 @@ gpt-6-astra      | 300   | 1,379,053    | 36,160     | 0          | $3.8092 USD
 
 ---
 
-## 6. Compuertas Deterministas del Dominio Financiero (México)
+## 6. Reglas de Validación Financiera (México)
 
-### 6.1. Algoritmo Módulo 10 Ponderado (CLABE Interbancaria de 18 dígitos)
-* **Regla Oficial Banxico/ABM:** Factores de ponderación cíclicos `[3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7]`.
+### 6.1. Algoritmo Módulo 10 (CLABE Interbancaria de 18 dígitos)
+* **Estándar Banxico/ABM:** Factores de ponderación cíclicos `[3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7]`.
 * Módulo 10 de cada producto parcial: `(dígito * ponderador) % 10`.
 * Dígito de control: `control = (10 - (sum(residuos) % 10)) % 10`.
-* **Axioma de Aritmética Cero:** Los LLMs tienen estrictamente prohibido calcular sumas de verificación o ponderaciones aritméticas en sus prompts o chains-of-thought. Cualquier cálculo se delega a la compuerta pura [`src/gates/modulo10.py`](src/gates/modulo10.py).
+* **Diseño:** El cálculo del dígito verificador no se delega al LLM; se resuelve de forma determinista en Python mediante [`src/gates/modulo10.py`](src/gates/modulo10.py) en menos de 0.1 ms.
 
-### 6.2. Validación Fiscal RFC / CFDI
-* Formatos SAT canónicos para Persona Física (13 caracteres) y Persona Moral (12 caracteres).
-* Validación estricta de estructura, coherencia de fecha y dígito verificador en [`src/gates/rfc_validator.py`](src/gates/rfc_validator.py).
+### 6.2. Validación Fiscal de RFC ante el SAT
+* Valida la estructura oficial para Persona Física (13 caracteres) y Persona Moral (12 caracteres).
+* Revisa coherencia de fecha, formato y homoclave mediante expresiones regulares y validadores puros en [`src/gates/rfc_validator.py`](src/gates/rfc_validator.py).
 
-### 6.3. StateGuard & Grafo Transaccional Acíclico
-* Transiciones formalmente autorizadas en el DAG:
+### 6.3. Control de Secuencia (`StateGuard`)
+* Secuencia obligatoria de estados antes de autorizar cualquier pago:
   $$\text{INITIALIZED} \rightarrow \text{ONBOARDING} \rightarrow \text{COMPLIANCE} \rightarrow \text{TREASURY} \rightarrow \text{DISPERSED}$$
-* Cualquier intento de saltar directamente a `TREASURY` o `DISPERSED` levanta de inmediato una excepción determinista `ShortCircuitViolation` y aborta la transacción sin costo deliberativo en el modelo.
+* Si el modelo intenta llamar a Tesorería o Dispersión sin haber completado Onboarding (CLABE válida) y Compliance (RFC aprobado), `StateGuard` intercepta la llamada con `ShortCircuitViolation` y detiene la transacción.
 
 ---
 
@@ -207,9 +211,10 @@ eval-harness/
 │       ├── trace_auditor.py     # Parser multimodelo y cálculo de PGDR / Breach
 │       ├── cost_auditor.py      # Auditor de tokens y costos reales facturados
 │       └── generate_report.py   # Generador de gráficos analíticos (Matplotlib)
+├── EXPLICACION.md               # Explicación didáctica del ciclo completo, modelos y métricas
 ├── WORKFLOW.md                  # Guía de operación estándar en 5 pasos
 ├── pyproject.toml               # Dependencias del arnés de evaluación
-└── README.md                    # Reporte científico del benchmark
+└── README.md                    # Reporte del benchmark y resultados cuantitativos
 ```
 
 ---
