@@ -153,10 +153,10 @@ def main() -> None:
     plot_containment_scatter(slices, out_path)
     plot_behavioral_archetypes(slices, out_path)
 
-    print(f"✅ Figuras generadas con éxito en: {out_path.resolve()}/")
-    print("  • entropy_degradation_series.png")
-    print("  • containment_scatter.png")
-    print("  • behavioral_archetypes.png")
+    print(f"[OK] Figuras generadas con éxito en: {out_path.resolve()}/")
+    print("  - entropy_degradation_series.png")
+    print("  - containment_scatter.png")
+    print("  - behavioral_archetypes.png")
 
 
 if __name__ == "__main__":

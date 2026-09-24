@@ -8,7 +8,7 @@
 
 Evaluación empírica de confiabilidad en llamadas a herramientas (*tool-calling*) para cuatro modelos de **OpenAI** (`gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra` y `gpt-6-astra`) en un flujo de dispersión de pagos interbancarios en México (SPEI, CLABE con Módulo 10 y RFC ante el SAT).
 
-> 📖 **Guía Completa del Benchmark:** Para una explicación detallada de todo el ciclo (concepción, diseño de tools, qué hace cada modelo con ejemplos reales y cómo se audita cada llamada), consulta **[`EXPLICACION.md`](EXPLICACION.md)**.
+> **Guía Completa del Benchmark:** Para una explicación detallada de todo el ciclo (concepción, diseño de tools, qué hace cada modelo con ejemplos reales y cómo se audita cada llamada), consulta **[`EXPLICACION.md`](EXPLICACION.md)**.
 
 ---
 
@@ -33,7 +33,7 @@ Este benchmark evalúa el comportamiento de los modelos bajo tres tamaños de ca
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
 │ FLUJO BASELINE (El LLM opera libremente)                                            │
 │  [ LLM ] ──────────── (Llamada libre a herramientas) ────────────> [ Motor de Pago ] │
-│  ⚠️ Brechas en el sistema: hasta 58.8% al saturar el catálogo de herramientas         │
+│  Brechas en el sistema: hasta 58.8% al saturar el catálogo de herramientas           │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -44,7 +44,7 @@ Este benchmark evalúa el comportamiento de los modelos bajo tres tamaños de ca
 │              CLABE Mod-10        Precondición      RFC / SAT         Aprobación      │
 │              (Banxico ABM)      de secuencia      (Regex SAT)       de pago          │
 │                                                                                      │
-│  🛡️ Brechas no interceptadas: 0.00% (el código frena cualquier llamada indebida)     │
+│  Brechas no interceptadas: 0.00% (el código frena cualquier llamada indebida)         │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
