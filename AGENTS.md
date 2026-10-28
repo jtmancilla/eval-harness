@@ -130,17 +130,31 @@ $$\text{CTO Delta} = \text{Tokens}_{\text{neurosymbolic}} - \text{Tokens}_{\text
 
 ---
 
+### 4.4. Inferencia Causal en la Escalera de Pearl (L1, L2, L3)
+Mide las capacidades de razonamiento causal formal bajo Modelos Causales Estructurales (SCM) lineales gaussianos:
+* **L1 (Observacional $P(y|x)$):** Detección de correlación empírica en narrativas macrofinancieras mexicanas (Banxico, inflación, CETES).
+* **L2 (Intervencional $P(y|do(x))$):** Identificación de efectos causales netos bloqueando confusores y colisionadores.
+* **L3 (Contrafáctico $P(y_x|x', y')$):** Retroducción de variables latentes exógenas $\hat{U}$ y resolución de realidades alternativas mediante el algoritmo de Pearl en 3 fases: Abducción, Acción y Predicción.
+* **Invariante Causal:** El LLM extrae entidades y topología; la aritmética contrafáctica y la suma de trayectorias concurrentes (teorema de Wright) se auditan contra el motor determinista formal (`src/eval/causal_dag_factory.py`).
+
+---
+
 ## 5. Estructura Canónica del Repositorio
 
 ```
 eval-harness/
 ├── configs/
+│   ├── causal_live_5k.yaml      # Matriz de generación viva (1,667 DAGs x 3 esfuerzos)
+│   ├── causal_matrix.yaml       # Configuración del arnés causal
 │   └── experiment_matrix.yaml   # Matriz de entropía (10, 50, 128) y modelos
 ├── data/
 │   ├── batches/                 # JSONL de entrada particionados por modelo (Git-ignored)
-│   └── fixtures/                # Muestras mínimas para pruebas unitarias
+│   └── fixtures/                # Muestras mínimas, ground truth y narrativas maestras
+│       └── master_causal_narratives_300.json # 300 arquetipos causales consolidados
 ├── results/                     # JSONL descargados y resúmenes JSON (Git-ignored)
-│   ├── figures/                 # Figuras analíticas de alta resolución (PNG)
+│   ├── figures/                 # Figuras analíticas de alta resolución (300 DPI PNG)
+│   ├── causal_benchmark_report_4950.md # Reporte cuantitativo consolidado (N=4,950)
+│   ├── causal_benchmark_summary_4950.json # Resumen estructurado JSON
 │   ├── benchmark_summary_1200.json # Resumen cuantitativo de 1,200 trazas reales
 │   └── benchmark_summary.json   # Resumen canónico de referencia
 ├── src/
@@ -157,6 +171,13 @@ eval-harness/
 │   └── eval/                    # Pipeline de evaluación y benchmarking
 │       ├── batch_generator.py   # Compilación particionada (Chat y Responses API)
 │       ├── batch_dispatcher.py  # CLI: --submit, --status, --download, --dry-run
+│       ├── batch_partitioner.py # Particionador Tier 1 (<= 495 reqs / 900k tokens)
+│       ├── batch_queue_runner.py # Orquestador secuencial / round-robin autónomo
+│       ├── causal_dag_factory.py # Generador SCM (6 topologías) y solver Pearl exacto
+│       ├── causal_dataset_compiler.py # Compilador sintético de generación viva
+│       ├── causal_stratified_compiler.py # Compilador estratificado (300 maestras)
+│       ├── causal_auditor.py    # Auditor cuantitativo L1, L2, L3 por esfuerzo
+│       ├── generate_causal_figures.py # Generador de figuras de publicación (300 DPI)
 │       ├── trace_auditor.py     # Parser multimodelo, métricas PGDR y System Breach
 │       ├── cost_auditor.py      # Auditor de tokens y costos reales facturados
 │       └── generate_report.py   # Generador de gráficos analíticos (Matplotlib)
