@@ -51,6 +51,15 @@ class OpenAIBatchDispatcher:
     }
     DEFAULT_RATES: dict[str, Decimal] = {"input": Decimal("2.50"), "output": Decimal("10.00")}
 
+    # OpenAI Tier 1 active batch queue limits (enqueued input tokens ceiling)
+    TIER1_QUEUE_LIMITS: dict[str, int] = {
+        "gpt-6-astra": 900_000,
+        "gpt-5.6-sol": 900_000,
+        "gpt-5.6-terra": 900_000,
+        "gpt-6-luna": 2_000_000,
+        "gpt-5.6-luna": 5_000_000,
+    }
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -158,14 +167,15 @@ class OpenAIBatchDispatcher:
                 else:
                     input_text = ""
 
-                if not isinstance(tools, list):
-                    raise ValueError(f"Línea {line_idx}: 'tools' debe ser un array de herramientas")
+                if tools is not None and not isinstance(tools, list):
+                    raise ValueError(f"Línea {line_idx}: 'tools' debe ser un array de herramientas si está presente")
 
                 models_found.add(model)
                 rates = self.MODEL_RATES.get(model, self.DEFAULT_RATES)
 
                 # 4. Proyección de tokens y costos
-                req_in_tokens = (len(input_text) + len(json.dumps(tools))) // 4
+                tools_len = len(json.dumps(tools)) if tools is not None else 0
+                req_in_tokens = (len(input_text) + tools_len) // 4
                 req_out_tokens = 300
 
                 total_input_tokens += req_in_tokens
@@ -179,6 +189,12 @@ class OpenAIBatchDispatcher:
         ceiling = Decimal(str(max_usd))
         is_within_budget = total_cost <= ceiling
 
+        model_queue_limit = min(
+            (self.TIER1_QUEUE_LIMITS.get(m, 900_000) for m in models_found),
+            default=900_000,
+        )
+        exceeds_queue_limit = total_input_tokens > model_queue_limit
+
         return {
             "valid": True,
             "total_requests": total_requests,
@@ -191,6 +207,8 @@ class OpenAIBatchDispatcher:
             "estimated_cost_usd": total_cost.quantize(Decimal("0.01")),
             "budget_limit_usd": ceiling,
             "is_within_budget": is_within_budget,
+            "queue_limit_tokens": model_queue_limit,
+            "exceeds_queue_limit": exceeds_queue_limit,
             "file_path": str(jsonl_path.resolve()),
         }
 
@@ -399,6 +417,12 @@ def main(argv: list[str] | None = None) -> None:
         help="Ruta destino opcional para el archivo descargado",
     )
 
+    parser.add_argument(
+        "--force-submit",
+        action="store_true",
+        help="Ignora la advertencia de límite de cola de tokens de OpenAI Tier 1 al despachar",
+    )
+
     args = parser.parse_args(argv)
 
     if args.dry_run:
@@ -422,11 +446,17 @@ def main(argv: list[str] | None = None) -> None:
         print(f"• Tokens entrada est.:     {summary['estimated_input_tokens']:,}")
         print(f"• Tokens salida est.:      {summary['estimated_output_tokens']:,}")
         print(f"• Tokens totales est.:     {summary['estimated_total_tokens']:,}")
+        print(f"• Límite cola Tier 1:      {summary['queue_limit_tokens']:,} tokens ({'EXCEDIDO — requiere partición' if summary['exceeds_queue_limit'] else 'SEGURO'})")
         print(f"• Costo proyectado:        ${summary['estimated_cost_usd']} USD")
         print(f"• Límite presupuestal:    ${summary['budget_limit_usd']} USD")
         print(f"• Dentro de presupuesto:   {'SÍ (Aprobado)' if summary['is_within_budget'] else 'NO (Excedido)'}")
         print("=" * 64)
-        print("-> Estatus: Inspección completada exitosamente sin emitir llamadas a OpenAI.\n")
+        if summary['exceeds_queue_limit']:
+            print("! ADVERTENCIA: Este lote excede el límite de cola activa de OpenAI Tier 1 (900,000 tokens).")
+            print("! Para dividirlo en fragmentos seguros (<= 495 peticiones), ejecute:")
+            print(f"!   .venv/bin/python src/eval/batch_partitioner.py {target_path} --chunk-size 495\n")
+        else:
+            print("-> Estatus: Inspección completada exitosamente sin emitir llamadas a OpenAI.\n")
         return
 
     if args.submit:
@@ -447,6 +477,16 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(
                 f"\n[ABORTADO]: El costo proyectado (${summary['estimated_cost_usd']}) supera la cota de "
                 f"${summary['budget_limit_usd']} USD.\n"
+            )
+
+        if summary.get("exceeds_queue_limit") and not args.force_submit:
+            sys.exit(
+                f"\n[ABORTADO]: El lote tiene ~{summary['estimated_input_tokens']:,} tokens de entrada estimados, "
+                f"lo cual excede el límite de cola activa en Tier 1 de OpenAI ({summary['queue_limit_tokens']:,} tokens).\n"
+                f"OpenAI rechazará este lote con error 'Enqueued token limit reached'.\n\n"
+                f"-> Solución: Divida el lote en fragmentos seguros (<= 495 peticiones) con:\n"
+                f"   .venv/bin/python src/eval/batch_partitioner.py {target_path} --chunk-size 495\n"
+                f"(Para ignorar esta verificación y forzar el despacho use --force-submit)\n"
             )
 
         print("-> Subiendo archivo e iniciando job en OpenAI Batch API...")

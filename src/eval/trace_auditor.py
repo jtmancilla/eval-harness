@@ -17,7 +17,7 @@ from src.contracts.fiscal import RFCData
 from src.tools.decoys import CollisionType, generate_decoy_catalog
 
 CUSTOM_ID_REGEX = re.compile(
-    r"^(?P<model>gpt-[a-z0-9\.\-]+)(?:_(?:effort-(?P<effort>low|medium|high|none)|adv-(?P<adv_type>[a-z_]+))){0,2}_N(?P<entropy>\d+)_(?P<condition>baseline_autorregresivo|neurosymbolic_handoff|hierarchical_router)_(?P<scenario>scenario_\d{3})_(?P<trace_id>[a-zA-Z0-9]+)$"
+    r"^(?P<model>gpt-[a-z0-9\.\-]+)(?:_(?:effort-(?P<effort>low|medium|high|none)|adv-(?P<adv_type>[a-z_]+))){0,2}_N(?P<entropy>\d+)_(?P<condition>baseline_autorregresivo|neurosymbolic_handoff|hierarchical_router|causal_inference)_(?P<scenario>scenario_\d{3})_(?P<trace_id>[a-zA-Z0-9]+)$"
 )
 
 TREASURY_TOOLS: frozenset[str] = frozenset({"build_spei_instruction", "calculate_spei_fee"})

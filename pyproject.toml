@@ -18,6 +18,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
     "matplotlib>=3.8.0",
+    "networkx>=3.2",
+    "numpy>=1.26.0",
+    "tenacity>=8.2.0",
     "pytest>=8.0.0",
     "ruff>=0.4.0",
 ]
