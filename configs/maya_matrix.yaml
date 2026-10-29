@@ -1,0 +1,9 @@
+maya_matrix:
+  name: "maya_agentic_evaluation_phase1"
+  version: "1.0.0"
+  description: "Matriz sintética de routing, ejecución secuencial, seguridad y persistencia para MAYA"
+  seed: 42
+  total_cases: 480
+  saturation_levels: [18, 36, 72]
+  output_dir: "data/maya/phase1"
+  sample_output: "data/fixtures/maya_phase1_sample.json"

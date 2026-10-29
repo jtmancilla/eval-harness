@@ -3,39 +3,25 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
 
-# Virtual Environments
+# Virtual environments
 .venv/
 env/
 venv/
 ENV/
 
-# Testing & Linting
+# Testing and linting
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
-.mypy_cache/
 
-# Environment Variables
+# Local secrets
 .env
-!.env.example
 
 # macOS
 .DS_Store
@@ -45,15 +31,7 @@ htmlcov/
 .Trashes
 ehthumbs.db
 
-# Evaluation Datasets & Batch Files
+# Generated evaluation data
 *.jsonl
-simulated_batch_output.jsonl
-results/simulated_batch_output.jsonl
-
-# Datasets y resultados masivos
-data/batches/*.jsonl
-data/batches/router_*.jsonl
-results/*.jsonl
-results/router_*.jsonl
-!results/.gitkeep
-!data/fixtures/
+data/maya/phase1/
+data/maya/sample/

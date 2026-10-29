@@ -3,32 +3,20 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "eval-harness"
+name = "maya-eval-harness"
 version = "0.1.0"
-description = "Neuro-symbolic evaluation and multi-agent benchmarking for Mexican regulated fintech workflows"
+description = "Synthetic phase-one evaluation matrix for the MAYA banking assistant"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
-authors = [
-    { name = "Lead AI Systems Architect", email = "architect@eval-harness.internal" }
-]
 dependencies = [
     "pydantic>=2.7.0",
-    "openai>=1.30.0",
-    "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
-    "matplotlib>=3.8.0",
-    "networkx>=3.2",
-    "numpy>=1.26.0",
-    "tenacity>=8.2.0",
-    "pytest>=8.0.0",
-    "ruff>=0.4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
 ]
@@ -43,15 +31,15 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "UP",
 ]
 ignore = [
-    "E501",  # line length is handled by formatter / docstrings
+    "E501",
 ]
 
 [tool.pytest.ini_options]
